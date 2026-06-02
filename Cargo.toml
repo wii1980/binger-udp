@@ -1,0 +1,69 @@
+[package]
+name = "udp-binger"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Cross-platform, batch-native UDP I/O with platform-optimal syscalls (sendmmsg/recvmmsg on Linux, GSO/GRO, and more)"
+license = "MIT"
+repository = "https://github.com/wii1980/rs-binger"
+keywords = ["udp", "batch", "sendmmsg", "recvmmsg", "networking"]
+categories = ["network-programming", "asynchronous"]
+
+[lints.rust]
+unsafe_code = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+
+[features]
+default = ["tokio"]
+
+# --- Async Runtimes ---
+tokio = ["dep:tokio"]
+
+# --- Platform-Optimized Backends ---
+# GSO: Generic Segmentation Offload — send one large datagram, kernel fragments it
+# Faster than sendmmsg for single-destination batches (e.g., QUIC, KCP client)
+gso = []
+
+# GRO: Generic Receive Offload — kernel coalesces multiple incoming datagrams
+# Faster than recvmmsg for single-socket receive
+gro = []
+
+# Busy-polling for ultra-low latency (SO_BUSY_POLL)
+busy-poll = []
+
+# Pacing / rate limiting (SO_MAX_PACING_RATE, requires fq qdisc)
+pacing = []
+
+# --- Observability ---
+metrics = []
+
+# --- Safety ---
+# Miri-compatible mode: disables platform-specific unsafe, pure fallback only
+miri-safe = []
+
+[dependencies]
+# Core — only libc for raw syscall access
+libc = "0.2"
+
+# Optional: Tokio async integration
+tokio = { version = "1", features = ["net", "rt"], optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Linux-specific: no extra deps needed (libc covers sendmmsg/recvmmsg)
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# macOS: no extra deps (use private sendmsg_x/recvmsg_x via libc)
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Networking_WinSock", "Win32_System_IO"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+criterion = "0.5"
+
+[[bench]]
+name = "batch_bench"
+harness = false
