@@ -45,7 +45,6 @@ fn encode_addr_into(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORAGE, namele
                 sin6_addr: WS::IN6_ADDR {
                     u: WS::IN6_ADDR_0 {
                         Byte: v6.ip().octets(),
-                        Word: [0u16; 8],
                     },
                 },
                 Anonymous: WS::SOCKADDR_IN6_0 {
@@ -75,7 +74,8 @@ fn decode_sockaddr(storage: &WS::SOCKADDR_STORAGE, namelen: i32) -> SocketAddr {
         x if x == WS::AF_INET6 as i32 => {
             let sin6: &WS::SOCKADDR_IN6 =
                 unsafe { &*(storage as *const _ as *const WS::SOCKADDR_IN6) };
-            let ip = Ipv6Addr::from(sin6.sin6_addr.u.Byte);
+            // SAFETY: union field access for sin6_addr.u.Byte and Anonymous
+            let ip = Ipv6Addr::from(unsafe { sin6.sin6_addr.u.Byte });
             let port = u16::from_be(sin6.sin6_port);
             SocketAddr::V6(SocketAddrV6::new(ip, port, sin6.sin6_flowinfo, unsafe {
                 sin6.Anonymous.sin6_scope_id
@@ -210,11 +210,15 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
 
     let mut received = 0usize;
     for i in 0..capacity {
-        let (buf, addr_out) = batch.buffer_mut(i);
+        // Split borrow: get buf pointer and length without holding a reference.
+        let (buf_ptr, buf_len) = {
+            let (buf, _) = batch.buffer_mut(i);
+            (buf.as_mut_ptr(), buf.len())
+        };
 
         let mut wsa_buf = WS::WSABUF {
-            len: buf.len() as u32,
-            buf: buf.as_mut_ptr(),
+            len: buf_len as u32,
+            buf: buf_ptr,
         };
 
         let mut source: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
@@ -253,8 +257,8 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
             let rc = unsafe {
                 WS::recvfrom(
                     fd,
-                    buf.as_mut_ptr() as *mut u8,
-                    buf.len() as i32,
+                    buf_ptr as *mut u8,
+                    buf_len as i32,
                     0,
                     &mut source as *mut _ as *mut _,
                     &mut addr_len,
@@ -269,9 +273,11 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
 
         match result {
             Ok(n) => {
-                // SAFETY: i < capacity, n <= buf.len()
+                let decoded = decode_sockaddr(&source, 0);
+                // SAFETY: i < capacity, n <= buf_len
                 unsafe { batch.set_recv_len(i, n) };
-                *addr_out = decode_sockaddr(&source, 0);
+                let (_, addr_out) = batch.buffer_mut(i);
+                *addr_out = decoded;
                 batch.set_len(i + 1);
                 received += 1;
             }

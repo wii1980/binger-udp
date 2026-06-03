@@ -27,6 +27,8 @@ pub(crate) fn encode_sockaddr(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORA
             mem::size_of::<WS::SOCKADDR_IN>() as i32
         }
         SocketAddr::V6(v6) => {
+            // SAFETY: IN6_ADDR_0 is a union; we only initialise the Byte field.
+            // The Word field remains uninitialised, which is fine for a union.
             let sin6 = WS::SOCKADDR_IN6 {
                 sin6_family: WS::AF_INET6 as u16,
                 sin6_port: v6.port().to_be(),
@@ -34,7 +36,6 @@ pub(crate) fn encode_sockaddr(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORA
                 sin6_addr: WS::IN6_ADDR {
                     u: WS::IN6_ADDR_0 {
                         Byte: v6.ip().octets(),
-                        Word: [0u16; 8],
                     },
                 },
                 Anonymous: WS::SOCKADDR_IN6_0 {
@@ -71,13 +72,13 @@ pub(crate) fn decode_sockaddr(storage: &WS::SOCKADDR_STORAGE, len: i32) -> Socke
             // SAFETY: storage contains a valid SOCKADDR_IN6 when ss_family == AF_INET6
             let sin6: &WS::SOCKADDR_IN6 =
                 unsafe { &*(storage as *const _ as *const WS::SOCKADDR_IN6) };
-            let ip = std::net::Ipv6Addr::from(sin6.sin6_addr.u.Byte);
+            // SAFETY: union field access for sin6_addr.u.Byte and Anonymous
+            let ip = std::net::Ipv6Addr::from(unsafe { sin6.sin6_addr.u.Byte });
             let port = u16::from_be(sin6.sin6_port);
             SocketAddr::V6(std::net::SocketAddrV6::new(
                 ip,
                 port,
                 sin6.sin6_flowinfo,
-                // SAFETY: Anonymous union access
                 unsafe { sin6.Anonymous.sin6_scope_id },
             ))
         }
@@ -212,8 +213,7 @@ pub(crate) fn raw_setsockopt_timeval(
     optname: i32,
     usecs: u32,
 ) -> io::Result<()> {
-    // Windows timeval uses i32 seconds and microseconds
-    let tv = WS::timeval {
+    let tv = WS::TIMEVAL {
         tv_sec: (usecs / 1_000_000) as i32,
         tv_usec: (usecs % 1_000_000) as i32,
     };
