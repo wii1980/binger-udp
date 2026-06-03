@@ -2,7 +2,7 @@
 
 **大胃王** — 跨平台批量 UDP I/O，专吃大量小包。
 
-[![Rust](https://img.shields.io/badge/rust-stable-blue.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-blue.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## 一句话描述
@@ -26,7 +26,7 @@
 |------|------|
 | 🍔 **批量优先** | `send_batch` / `recv_batch` 是主 API，单包是便利包装 |
 | 🏎️ **零分配热路径** | 预分配 buffer pool，send/recv 不碰堆 |
-| 🌍 **跨平台自动选择** | Linux→sendmmsg/GSO, macOS→sendmsg_x, Windows→WSASendMsg |
+| 🌍 **跨平台自动选择** | Linux→sendmmsg/GSO, macOS→sendmsg_x (dlsym), Windows→WSASendMsg (WSAIoctl), 通用→sendto/recvfrom |
 | ⚡ **Tokio 原生** | poll 驱动，不是 try_io 胶水 |
 | 📊 **内置指标** | 可选，零开销，batch 效率一目了然 |
 | 🔄 **自适应批量** | 根据背压自动调 batch_size |
@@ -34,13 +34,13 @@
 
 ## 平台后端
 
-| 平台 | 发送 | 接收 | 额外优化 |
-|------|------|------|---------|
-| Linux (connected) | `sendmsg` w/ GSO | `recvmmsg` + GRO | `pacing`, `busy-poll` |
-| Linux (multi-dest) | `sendmmsg` | `recvmmsg` | — |
-| macOS | `sendmsg_x` | `recvmsg_x` | — |
-| Windows | `WSASendMsg` | `WSARecvMsg` | — |
-| Fallback | `sendto` | `recvfrom` | — |
+| 平台 | 发送 | 接收 | 额外优化 | 状态 |
+|------|------|------|---------|------|
+| Linux (connected) | `sendmsg` w/ GSO | `recvmmsg` + GRO | `pacing`, `busy-poll` | ✅ 已实现 |
+| Linux (multi-dest) | `sendmmsg` | `recvmmsg` | — | ✅ 已实现 |
+| macOS | `sendmsg_x` | `recvmsg_x` | dlsym 运行时检测 | ✅ 已实现 |
+| Windows | `WSASendMsg` | `WSARecvMsg` | WSAIoctl 运行时检测 | ✅ 已实现 |
+| Fallback | `sendto` | `recvfrom` | — | ✅ 已实现 |
 
 ## 快速开始
 
@@ -93,8 +93,10 @@ udp-binger = "0.1"
 
 ```toml
 [dependencies]
-udp-binger = { version = "0.1", features = ["metrics", "gso", "gro"] }
+udp-binger = { version = "0.1", features = ["metrics", "gso", "gro", "pacing", "busy-poll", "timestamping", "pktinfo"] }
 ```
+
+**MSRV**: Rust 1.75+ (edition 2021)
 
 ## 应用场景
 
@@ -123,14 +125,13 @@ udp-binger = { version = "0.1", features = ["metrics", "gso", "gro"] }
 
 ## 版本路线
 
-| 版本 | 内容 |
-|------|------|
-| v0.1 | Linux sendmmsg/recvmmsg + fallback + Tokio + BufferPool |
-| v0.2 | macOS + Windows 全平台 |
-| v0.3 | GSO/GRO + 自适应批量 + Metrics |
-| v0.4 | Pacing + busy-poll + timestamping |
-| v0.5 | no_std + embedded (embassy-net) |
-| v1.0 | 稳定 API + 全面文档 |
+| 版本 | 内容 | 状态 |
+|------|------|------|
+| v0.1 | Linux sendmmsg/recvmmsg + fallback + Tokio + BufferPool | ✅ |
+| v0.2 | macOS + Windows 全平台 | ✅ |
+| v0.3 | GSO/GRO + 自适应批量 + Metrics | ✅ |
+| v0.4 | Pacing + busy-poll + timestamping + pktinfo | ✅ |
+| v1.0 | 稳定 API + 全面文档 | — |
 
 ## License
 

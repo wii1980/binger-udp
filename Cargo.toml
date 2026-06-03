@@ -1,8 +1,8 @@
 [package]
 name = "udp-binger"
 version = "0.1.0"
-edition = "2024"
-rust-version = "1.85"
+edition = "2021"
+rust-version = "1.75"
 description = "Cross-platform, batch-native UDP I/O with platform-optimal syscalls (sendmmsg/recvmmsg on Linux, GSO/GRO, and more)"
 license = "MIT"
 repository = "https://github.com/wii1980/rs-binger"
@@ -10,11 +10,21 @@ keywords = ["udp", "batch", "sendmmsg", "recvmmsg", "networking"]
 categories = ["network-programming", "asynchronous"]
 
 [lints.rust]
-unsafe_code = "warn"
+unsafe_code = "allow"
 
 [lints.clippy]
-all = "warn"
-pedantic = "warn"
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# FFI/syscall layer: pointer casts and integer narrowing are inherent to libc interop
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_sign_loss = "allow"
+cast_lossless = "allow"
+cast_ptr_alignment = "allow"
+ptr_as_ptr = "allow"
+ptr_cast_constness = "allow"
+borrow_as_ptr = "allow"
+ref_as_ptr = "allow"
 
 [features]
 default = ["tokio"]
@@ -40,15 +50,23 @@ pacing = []
 # --- Observability ---
 metrics = []
 
+# --- Linux Advanced ---
+# Timestamping: SO_TIMESTAMPNS + SCM_TIMESTAMPNS cmsg parsing in recv
+timestamping = []
+
+# Pktinfo: IP_PKTINFO / IPV6_RECVPKTINFO — destination address in recv
+pktinfo = []
+
 # --- Safety ---
 # Miri-compatible mode: disables platform-specific unsafe, pure fallback only
 miri-safe = []
 
 [dependencies]
-# Core — only libc for raw syscall access
 libc = "0.2"
+thiserror = "2"
+crossbeam-queue = "0.3"
+bytes = { version = "1", features = ["serde"] }
 
-# Optional: Tokio async integration
 tokio = { version = "1", features = ["net", "rt"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
