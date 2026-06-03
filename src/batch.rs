@@ -418,8 +418,6 @@ struct RecvSlot {
 /// Most users should use [`RecvBatch<N>`] instead.
 pub struct RecvBatchRaw {
     slots: Vec<RecvSlot>,
-    #[allow(dead_code)]
-    buf_size: usize,
     len: usize,
 }
 
@@ -443,7 +441,6 @@ impl RecvBatchRaw {
             .collect();
         Self {
             slots,
-            buf_size,
             len: 0,
         }
     }
