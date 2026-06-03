@@ -6,8 +6,8 @@ use binger_udp::{platform_capabilities, BingerUdp, Config, RecvBatch, SendBatch}
 // Helper
 // ---------------------------------------------------------------------------
 
-/// Create a (sender, receiver, receiver_addr) triplet bound to 127.0.0.1:0.
-async fn make_pair() -> std::io::Result<(BingerUdp, BingerUdp, SocketAddr)> {
+/// Create a (sender, receiver, `receiver_addr`) triplet bound to 127.0.0.1:0.
+fn make_pair() -> std::io::Result<(BingerUdp, BingerUdp, SocketAddr)> {
     let recv = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
     let recv_addr = recv.local_addr()?;
     let send = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
@@ -22,7 +22,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[tokio::test]
 async fn test_single_send_recv() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
     let payload: &[u8] = b"hello binger";
 
     let n = send.send_to(payload, recv_addr).await?;
@@ -45,15 +45,15 @@ async fn test_single_send_recv() -> TestResult {
 
 #[tokio::test]
 async fn test_batch_send_recv_n1() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
 
     let mut sb = SendBatch::<1>::new();
     sb.push(b"n1 batch", recv_addr)?;
-    let n = send.send_batch(&mut *sb).await?;
+    let n = send.send_batch(&mut sb).await?;
     assert_eq!(n, 1, "send_batch should return 1 for single item");
 
     let mut rb = RecvBatch::<1>::new(2048);
-    let n = recv.recv_batch(&mut *rb).await?;
+    let n = recv.recv_batch(&mut rb).await?;
     assert_eq!(n, 1, "recv_batch should return 1 for single packet");
     assert_eq!(rb.data(0), b"n1 batch", "data should match");
 
@@ -66,18 +66,18 @@ async fn test_batch_send_recv_n1() -> TestResult {
 
 #[tokio::test]
 async fn test_batch_send_recv_n32() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
 
     let msgs: Vec<String> = (0..32).map(|i| format!("packet-{i}")).collect();
     let mut sb = SendBatch::<32>::new();
     for msg in &msgs {
         sb.push(msg.as_bytes(), recv_addr)?;
     }
-    let n = send.send_batch(&mut *sb).await?;
+    let n = send.send_batch(&mut sb).await?;
     assert_eq!(n, 32, "should send all 32 packets");
 
     let mut rb = RecvBatch::<32>::new(2048);
-    let n = recv.recv_batch(&mut *rb).await?;
+    let n = recv.recv_batch(&mut rb).await?;
     assert_eq!(n, 32, "should receive all 32 packets");
 
     for i in 0..32 {
@@ -98,7 +98,7 @@ async fn test_batch_send_recv_n32() -> TestResult {
 
 #[tokio::test]
 async fn test_connected_mode() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
 
     send.connect(recv_addr)?;
 
@@ -108,11 +108,11 @@ async fn test_connected_mode() -> TestResult {
     let mut sb = SendBatch::<2>::new();
     sb.push_connected(b"connected-1")?;
     sb.push_connected(b"connected-2")?;
-    let n = send.try_send_batch(&mut *sb)?;
+    let n = send.try_send_batch(&mut sb)?;
     assert_eq!(n, 2, "should send 2 connected packets");
 
     let mut rb = RecvBatch::<4>::new(2048);
-    let n = recv.recv_batch(&mut *rb).await?;
+    let n = recv.recv_batch(&mut rb).await?;
     assert_eq!(n, 4, "should receive all 4 packets");
     let all_data: Vec<&[u8]> = rb.iter().map(|(d, _)| d).collect();
     assert!(
@@ -141,14 +141,14 @@ async fn test_connected_mode() -> TestResult {
 
 #[tokio::test]
 async fn test_send_batch_returns_count() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
 
     for count in [0usize, 1, 3, 7] {
         let mut sb = SendBatch::<8>::new();
         for _ in 0..count {
             sb.push(b"x", recv_addr)?;
         }
-        let n = send.send_batch(&mut *sb).await?;
+        let n = send.send_batch(&mut sb).await?;
         assert_eq!(
             n, count,
             "send_batch with {count} items should return {count}"
@@ -156,7 +156,7 @@ async fn test_send_batch_returns_count() -> TestResult {
 
         if count > 0 {
             let mut rb = RecvBatch::<8>::new(2048);
-            let got = recv.recv_batch(&mut *rb).await?;
+            let got = recv.recv_batch(&mut rb).await?;
             assert_eq!(got, count, "drain should match item count");
         }
     }
@@ -170,7 +170,7 @@ async fn test_send_batch_returns_count() -> TestResult {
 
 #[tokio::test]
 async fn test_recv_batch_count_data_addr() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
     let send_addr = send.local_addr()?;
 
     let payloads: [&[u8]; 5] = [b"one", b"two", b"three", b"four", b"five"];
@@ -178,17 +178,17 @@ async fn test_recv_batch_count_data_addr() -> TestResult {
     for &p in &payloads {
         sb.push(p, recv_addr)?;
     }
-    let n = send.send_batch(&mut *sb).await?;
+    let n = send.send_batch(&mut sb).await?;
     assert_eq!(n, 5, "should send 5 packets");
 
     let mut rb = RecvBatch::<5>::new(2048);
-    let n = recv.recv_batch(&mut *rb).await?;
+    let n = recv.recv_batch(&mut rb).await?;
     assert_eq!(n, 5, "should receive 5 packets");
 
-    for i in 0..5 {
+    for (i, payload) in payloads.iter().enumerate() {
         assert_eq!(
             rb.data(i),
-            payloads[i],
+            *payload,
             "packet {i} data should match sent payload"
         );
         assert_eq!(
@@ -207,7 +207,7 @@ async fn test_recv_batch_count_data_addr() -> TestResult {
 
 #[tokio::test]
 async fn test_data_integrity() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
 
     let payloads: Vec<Vec<u8>> = vec![
         b"".to_vec(),
@@ -222,11 +222,11 @@ async fn test_data_integrity() -> TestResult {
     for p in &payloads {
         sb.push(p.as_slice(), recv_addr)?;
     }
-    let n = send.send_batch(&mut *sb).await?;
+    let n = send.send_batch(&mut sb).await?;
     assert_eq!(n, payloads.len(), "should send all payloads");
 
     let mut rb = RecvBatch::<8>::new(2048);
-    let n = recv.recv_batch(&mut *rb).await?;
+    let n = recv.recv_batch(&mut rb).await?;
     assert_eq!(n, payloads.len(), "should receive all payloads");
 
     for (i, (data, _)) in rb.iter().enumerate() {
@@ -248,7 +248,7 @@ async fn test_data_integrity() -> TestResult {
 
 #[tokio::test]
 async fn test_large_batch_different_sizes() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
 
     let small = vec![b's'; 10];
     let medium = vec![b'm'; 500];
@@ -264,11 +264,11 @@ async fn test_large_batch_different_sizes() -> TestResult {
     for _ in 0..24 {
         sb.push(&large, recv_addr)?;
     }
-    let n = send.send_batch(&mut *sb).await?;
+    let n = send.send_batch(&mut sb).await?;
     assert_eq!(n, 64, "should send all 64 packets");
 
     let mut rb = RecvBatch::<64>::new(2048);
-    let n = recv.recv_batch(&mut *rb).await?;
+    let n = recv.recv_batch(&mut rb).await?;
     assert_eq!(n, 64, "should receive all 64 packets");
 
     let sizes: Vec<usize> = rb.iter().map(|(d, _)| d.len()).collect();
@@ -300,16 +300,16 @@ async fn test_multiple_destinations() -> TestResult {
     let mut sb = SendBatch::<2>::new();
     sb.push(b"to-a", addr_a)?;
     sb.push(b"to-b", addr_b)?;
-    let n = send.send_batch(&mut *sb).await?;
+    let n = send.send_batch(&mut sb).await?;
     assert_eq!(n, 2, "should send 2 packets to different destinations");
 
     let mut rb = RecvBatch::<1>::new(2048);
-    let n = recv_a.recv_batch(&mut *rb).await?;
+    let n = recv_a.recv_batch(&mut rb).await?;
     assert_eq!(n, 1, "receiver A should get 1 packet");
     assert_eq!(rb.data(0), b"to-a", "receiver A should get correct data");
 
     let mut rb = RecvBatch::<1>::new(2048);
-    let n = recv_b.recv_batch(&mut *rb).await?;
+    let n = recv_b.recv_batch(&mut rb).await?;
     assert_eq!(n, 1, "receiver B should get 1 packet");
     assert_eq!(rb.data(0), b"to-b", "receiver B should get correct data");
 
@@ -333,10 +333,10 @@ async fn test_config_builder() -> TestResult {
 
     let mut sb = SendBatch::<1>::new();
     sb.push(b"config-builder", recv_addr)?;
-    send.send_batch(&mut *sb).await?;
+    send.send_batch(&mut sb).await?;
 
     let mut rb = RecvBatch::<1>::new(2048);
-    recv.recv_batch(&mut *rb).await?;
+    recv.recv_batch(&mut rb).await?;
     assert_eq!(
         rb.data(0),
         b"config-builder",
@@ -389,7 +389,7 @@ async fn test_local_addr() -> TestResult {
 
     assert_eq!(
         addr.ip(),
-        std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
+        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
         "should bind to 127.0.0.1"
     );
     assert!(addr.port() > 0, "should have a non-zero OS-assigned port");
@@ -423,7 +423,7 @@ async fn test_ttl_roundtrip() -> TestResult {
 
 #[tokio::test]
 async fn test_clear_send_batch() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
 
     let mut sb = SendBatch::<5>::new();
 
@@ -441,10 +441,10 @@ async fn test_clear_send_batch() -> TestResult {
 
     sb.push(b"after-clear", recv_addr)?;
     assert_eq!(sb.len(), 1);
-    send.send_batch(&mut *sb).await?;
+    send.send_batch(&mut sb).await?;
 
     let mut rb = RecvBatch::<1>::new(2048);
-    recv.recv_batch(&mut *rb).await?;
+    recv.recv_batch(&mut rb).await?;
     assert_eq!(
         rb.data(0),
         b"after-clear",
@@ -456,15 +456,15 @@ async fn test_clear_send_batch() -> TestResult {
 
 #[tokio::test]
 async fn test_clear_recv_batch() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
 
     let mut sb = SendBatch::<2>::new();
     sb.push(b"first-A", recv_addr)?;
     sb.push(b"first-B", recv_addr)?;
-    send.send_batch(&mut *sb).await?;
+    send.send_batch(&mut sb).await?;
 
     let mut rb = RecvBatch::<4>::new(2048);
-    let n = recv.recv_batch(&mut *rb).await?;
+    let n = recv.recv_batch(&mut rb).await?;
     assert_eq!(n, 2, "should receive first wave");
     assert!(
         !rb.iter().collect::<Vec<_>>().is_empty(),
@@ -476,9 +476,9 @@ async fn test_clear_recv_batch() -> TestResult {
 
     let mut sb = SendBatch::<1>::new();
     sb.push(b"second", recv_addr)?;
-    send.send_batch(&mut *sb).await?;
+    send.send_batch(&mut sb).await?;
 
-    let n = recv.recv_batch(&mut *rb).await?;
+    let n = recv.recv_batch(&mut rb).await?;
     assert_eq!(n, 1, "should receive second wave");
     assert_eq!(rb.data(0), b"second", "second-wave data should be correct");
 
@@ -491,17 +491,17 @@ async fn test_clear_recv_batch() -> TestResult {
 
 #[tokio::test]
 async fn test_recv_batch_iter() -> TestResult {
-    let (send, recv, recv_addr) = make_pair().await?;
+    let (send, recv, recv_addr) = make_pair()?;
     let send_addr = send.local_addr()?;
 
     let mut sb = SendBatch::<3>::new();
     sb.push(b"alpha", recv_addr)?;
     sb.push(b"beta", recv_addr)?;
     sb.push(b"gamma", recv_addr)?;
-    send.send_batch(&mut *sb).await?;
+    send.send_batch(&mut sb).await?;
 
     let mut rb = RecvBatch::<3>::new(2048);
-    let n = recv.recv_batch(&mut *rb).await?;
+    let n = recv.recv_batch(&mut rb).await?;
     assert_eq!(n, 3, "should receive 3 packets");
 
     let items: Vec<(&[u8], SocketAddr)> = rb.iter().collect();

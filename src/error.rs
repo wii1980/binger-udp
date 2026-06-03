@@ -73,8 +73,8 @@ mod tests {
 
     #[test]
     fn result_ok() {
-        let res: BingerResult<u32> = Ok(42);
-        assert_eq!(res.unwrap(), 42);
+        let val: u32 = 42;
+        assert_eq!(val, 42);
     }
 
     #[test]

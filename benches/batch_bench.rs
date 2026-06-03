@@ -1,18 +1,18 @@
 //! Comprehensive benchmarks comparing batch vs single-packet UDP I/O.
 //!
 //! Benchmarks:
-//! 1. **send_batch vs loop send_to** — Send N packets (1, 4, 8, 16, 32, 64)
+//! 1. **`send_batch` vs loop `send_to`** — Send N packets (1, 4, 8, 16, 32, 64)
 //!    with payload sizes (64, 512, 1400 bytes)
-//! 2. **recv_batch vs loop recv_from** — Receive N packets (1, 4, 8, 16, 32)
+//! 2. **`recv_batch` vs loop `recv_from`** — Receive N packets (1, 4, 8, 16, 32)
 //! 3. **Throughput** — Batch send+recv MB/s for batch sizes (1, 8, 16, 32)
 
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use binger_udp::{BingerUdp, Config, RecvBatch, SendBatch};
 use criterion::{
     black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput,
 };
-use binger_udp::{BingerUdp, Config, RecvBatch, SendBatch};
 
 /// Max batch capacity used for all const-generic batch types.
 /// Individual benchmarks only push `n` items where `n <= MAX_BATCH`.
@@ -84,7 +84,7 @@ fn bench_send(c: &mut Criterion) {
                         },
                         |(sender, mut batch)| {
                             let sent = sender
-                                .try_send_batch(&mut *batch)
+                                .try_send_batch(&mut batch)
                                 .expect("try_send_batch failed");
                             black_box(sent);
                         },
@@ -137,7 +137,7 @@ fn setup_recv(n: usize, payload: &[u8]) -> BingerUdp {
             .expect("batch capacity exceeded");
     }
     let sent = sender
-        .try_send_batch(&mut *send_batch)
+        .try_send_batch(&mut send_batch)
         .expect("pre-fill try_send_batch failed");
     assert_eq!(sent, n, "pre-fill: expected {n} packets sent, got {sent}");
 
@@ -163,7 +163,7 @@ fn bench_recv(c: &mut Criterion) {
                 |receiver| {
                     let mut recv_batch = RecvBatch::<MAX_BATCH>::new(RECV_BUF_SIZE);
                     let received = receiver
-                        .try_recv_batch(&mut *recv_batch)
+                        .try_recv_batch(&mut recv_batch)
                         .expect("try_recv_batch failed");
                     black_box(received);
                 },
@@ -179,7 +179,7 @@ fn bench_recv(c: &mut Criterion) {
                     for _ in 0..n {
                         let mut single = RecvBatch::<1>::new(RECV_BUF_SIZE);
                         let received = receiver
-                            .try_recv_batch(&mut *single)
+                            .try_recv_batch(&mut single)
                             .expect("try_recv_batch single failed");
                         black_box(received);
                     }
@@ -224,14 +224,14 @@ fn bench_throughput(c: &mut Criterion) {
                             .expect("batch capacity exceeded");
                     }
                     let sent = sender
-                        .try_send_batch(&mut *send_batch)
+                        .try_send_batch(&mut send_batch)
                         .expect("throughput try_send_batch failed");
                     black_box(sent);
 
                     // Batch recv
                     let mut recv_batch = RecvBatch::<MAX_BATCH>::new(RECV_BUF_SIZE);
                     let received = receiver
-                        .try_recv_batch(&mut *recv_batch)
+                        .try_recv_batch(&mut recv_batch)
                         .expect("throughput try_recv_batch failed");
                     black_box(received);
                 },

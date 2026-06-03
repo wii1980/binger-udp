@@ -296,7 +296,8 @@ mod tests {
     #[test]
     fn efficiency_ratio_no_syscalls() {
         let m = BingerMetrics::default();
-        assert_eq!(m.syscall_efficiency_ratio(), 0.0);
+        let ratio = m.syscall_efficiency_ratio();
+        assert!(ratio.abs() < f64::EPSILON, "expected 0.0, got {ratio}");
     }
 
     #[test]

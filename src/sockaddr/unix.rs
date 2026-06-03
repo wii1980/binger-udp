@@ -327,7 +327,7 @@ mod tests {
         let addr = SocketAddr::V6(SocketAddrV6::new(
             Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1),
             12345,
-            0xabcdef,
+            0x00ab_cdef,
             42,
         ));
         let mut storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };

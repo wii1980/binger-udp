@@ -3,8 +3,8 @@
 // Demonstrates SendBatch::<32> and RecvBatch::<32> with the core
 // send_batch / recv_batch API. Prints the count and first/last packet.
 
-use std::net::UdpSocket;
 use binger_udp::{BingerUdp, Config, RecvBatch, SendBatch};
+use std::net::UdpSocket;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -22,12 +22,12 @@ async fn main() -> std::io::Result<()> {
         // unwrap: capacity is 32, we push exactly 32 items
         send_batch.push(msg.as_bytes(), recv_addr).unwrap();
     }
-    let sent = sender.send_batch(&mut *send_batch).await?;
+    let sent = sender.send_batch(&mut send_batch).await?;
     println!("sent {sent} packets in one batch");
 
     // --- Batch receive ---
     let mut recv_batch = RecvBatch::<32>::new(2048);
-    let n = receiver.recv_batch(&mut *recv_batch).await?;
+    let n = receiver.recv_batch(&mut recv_batch).await?;
     println!("received {n} packets in one batch");
 
     // Print first and last packet

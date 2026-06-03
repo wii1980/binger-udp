@@ -4,8 +4,8 @@
 // send_buf_size. Prints platform capabilities, then sends and receives
 // one packet to verify the custom config works correctly.
 
-use std::net::UdpSocket;
 use binger_udp::{platform_capabilities, BingerUdp, Config, RecvBatch, SendBatch};
+use std::net::UdpSocket;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -46,16 +46,16 @@ async fn main() -> std::io::Result<()> {
     let mut send_batch = SendBatch::<1>::new();
     send_batch.push(b"custom-config-works", recv_addr).unwrap();
     // unwrap: capacity is 1, we push exactly 1 item
-    let sent = sender.send_batch(&mut *send_batch).await?;
+    let sent = sender.send_batch(&mut send_batch).await?;
     println!("\nsent {sent} packet");
 
     let mut recv_batch = RecvBatch::<1>::new(2048);
-    let n = receiver.recv_batch(&mut *recv_batch).await?;
+    let n = receiver.recv_batch(&mut recv_batch).await?;
     println!("received {n} packet");
 
     if n > 0 {
         let data = recv_batch.data(0);
-        println!("data: {:?}", String::from_utf8_lossy(data),);
+        println!("data: {:?}", String::from_utf8_lossy(data));
     }
 
     Ok(())

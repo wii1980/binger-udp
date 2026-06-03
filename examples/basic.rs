@@ -3,8 +3,8 @@
 // Creates two BingerUdp sockets on 127.0.0.1:0, sends "hello binger"
 // from one to the other, and prints the received message.
 
-use std::net::UdpSocket;
 use binger_udp::{BingerUdp, Config};
+use std::net::UdpSocket;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -21,10 +21,10 @@ async fn main() -> std::io::Result<()> {
     // Receive the packet
     let mut buf = vec![0u8; 2048];
     let (n, src) = receiver.recv_from(&mut buf).await?;
-    let received = &buf[..n];
+    let received_data = &buf[..n];
     println!(
         "received {n} bytes from {src}: {:?}",
-        String::from_utf8_lossy(received),
+        String::from_utf8_lossy(received_data),
     );
 
     Ok(())

@@ -645,7 +645,7 @@ mod tests {
 
     #[test]
     fn send_batch_default_trait() {
-        let batch: SendBatch<4> = Default::default();
+        let batch: SendBatch<4> = SendBatch::default();
         assert_eq!(batch.len(), 0);
         assert!(batch.is_empty());
         assert_eq!(batch.capacity(), 4);
@@ -982,7 +982,7 @@ mod tests {
     #[cfg(feature = "timestamping")]
     #[test]
     fn timestamp_default_is_zero() {
-        let ts: Timestamp = Default::default();
+        let ts: Timestamp = Timestamp::default();
         assert_eq!(ts.tv_sec, 0);
         assert_eq!(ts.tv_nsec, 0);
     }
@@ -999,6 +999,6 @@ mod tests {
         assert_eq!(cloned.tv_nsec, 7);
         let debug_str = format!("{ts:?}");
         assert!(debug_str.contains("42"));
-        assert!(debug_str.contains("7"));
+        assert!(debug_str.contains('7'));
     }
 }
