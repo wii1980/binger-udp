@@ -37,6 +37,7 @@
 pub mod batch;
 pub mod bufs;
 pub mod error;
+#[cfg(feature = "metrics")]
 pub mod metrics;
 mod platform;
 pub mod sockaddr;
@@ -48,5 +49,6 @@ pub use batch::Timestamp;
 pub use batch::{RecvBatch, SendBatch};
 pub use bufs::BufferPool;
 pub use error::BingerError;
+#[cfg(feature = "metrics")]
 pub use metrics::BingerMetrics;
 pub use socket::{platform_capabilities, BingerUdp, Config, PlatformCaps};

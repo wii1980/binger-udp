@@ -7,7 +7,6 @@ pub(crate) fn encode_sockaddr(
     addr: SocketAddr,
     storage: &mut libc::sockaddr_storage,
 ) -> libc::socklen_t {
-    storage.ss_family = 0;
     match addr {
         SocketAddr::V4(v4) => {
             #[allow(clippy::unnecessary_cast)]
@@ -208,35 +207,6 @@ pub(crate) fn raw_setsockopt_u32(
             optname,
             &val as *const _ as *const libc::c_void,
             mem::size_of_val(&val) as libc::socklen_t,
-        )
-    };
-    if ret < 0 {
-        Err(std::io::Error::last_os_error())
-    } else {
-        Ok(())
-    }
-}
-
-#[allow(dead_code)]
-pub(crate) fn raw_setsockopt_timeval(
-    fd: Fd,
-    level: libc::c_int,
-    optname: libc::c_int,
-    usecs: u32,
-) -> std::io::Result<()> {
-    // SAFETY: timeval is zero-initialized then fields set
-    let tv = libc::timeval {
-        tv_sec: (usecs / 1_000_000) as libc::time_t,
-        tv_usec: (usecs % 1_000_000) as libc::suseconds_t,
-    };
-    // SAFETY: setsockopt with valid fd, level, optname, and timeval pointer
-    let ret = unsafe {
-        libc::setsockopt(
-            fd,
-            level,
-            optname,
-            &tv as *const _ as *const libc::c_void,
-            mem::size_of_val(&tv) as libc::socklen_t,
         )
     };
     if ret < 0 {
@@ -464,21 +434,5 @@ mod tests {
         raw_setsockopt_u32(fd, libc::IPPROTO_IP, libc::IP_TTL, 64u32).unwrap();
         let val = raw_getsockopt(fd, libc::IPPROTO_IP, libc::IP_TTL).unwrap();
         assert_eq!(val, 64);
-    }
-
-    #[test]
-    fn raw_setsockopt_timeval_rcvtimeo() {
-        let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
-        let fd = sock.as_raw_fd();
-
-        raw_setsockopt_timeval(fd, libc::SOL_SOCKET, libc::SO_RCVTIMEO, 100_000).unwrap();
-
-        let mut buf = [0u8; 64];
-        let err = raw_recvfrom(fd, &mut buf).unwrap_err();
-        assert_eq!(
-            err.kind(),
-            std::io::ErrorKind::WouldBlock,
-            "recvfrom on empty socket with SO_RCVTIMEO should return WouldBlock"
-        );
     }
 }

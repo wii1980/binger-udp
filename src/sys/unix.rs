@@ -6,10 +6,6 @@
 /// On Windows this will be `SOCKET` (`usize`).
 pub(crate) type Fd = std::os::fd::RawFd;
 
-/// Invalid fd sentinel value.
-#[allow(dead_code)]
-pub(crate) const INVALID_FD: Fd = -1;
-
 // Re-export commonly used socket-level / protocol constants.
 // Linux-specific constants (UDP_GRO, UDP_SEGMENT, SCM_TIMESTAMPNS, SO_TIMESTAMPNS)
 // are only available on cfg(target_os = "linux").

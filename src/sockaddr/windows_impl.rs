@@ -7,7 +7,6 @@ use windows_sys::Win32::Networking::WinSock as WS;
 use crate::sys::Fd;
 
 pub(crate) fn encode_sockaddr(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORAGE) -> i32 {
-    storage.ss_family = 0;
     match addr {
         SocketAddr::V4(v4) => {
             let sin = WS::SOCKADDR_IN {
@@ -178,53 +177,6 @@ pub(crate) fn raw_setsockopt(fd: Fd, level: i32, optname: i32, val: i32) -> io::
             optname,
             &val as *const _ as *const u8,
             mem::size_of_val(&val) as i32,
-        )
-    };
-    if ret == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-#[allow(dead_code)]
-pub(crate) fn raw_setsockopt_u32(fd: Fd, level: i32, optname: i32, val: u32) -> io::Result<()> {
-    // SAFETY: setsockopt with valid fd, level, optname, and u32 value pointer
-    let ret = unsafe {
-        WS::setsockopt(
-            fd,
-            level,
-            optname,
-            &val as *const _ as *const u8,
-            mem::size_of_val(&val) as i32,
-        )
-    };
-    if ret == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-#[allow(dead_code)]
-pub(crate) fn raw_setsockopt_timeval(
-    fd: Fd,
-    level: i32,
-    optname: i32,
-    usecs: u32,
-) -> io::Result<()> {
-    let tv = WS::TIMEVAL {
-        tv_sec: (usecs / 1_000_000) as i32,
-        tv_usec: (usecs % 1_000_000) as i32,
-    };
-    // SAFETY: setsockopt with valid fd, level, optname, and timeval pointer
-    let ret = unsafe {
-        WS::setsockopt(
-            fd,
-            level,
-            optname,
-            &tv as *const _ as *const u8,
-            mem::size_of_val(&tv) as i32,
         )
     };
     if ret == 0 {

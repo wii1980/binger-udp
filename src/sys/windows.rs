@@ -4,9 +4,6 @@
 /// Windows socket handle type (SOCKET = usize).
 pub(crate) type Fd = usize;
 
-/// Invalid socket sentinel value: INVALID_SOCKET (all bits set).
-pub(crate) const INVALID_FD: Fd = !0;
-
 // Socket-level / protocol constants, cast to i32 for compatibility
 // with the Unix-side code in socket.rs that passes them to setsockopt.
 pub(crate) const SOL_SOCKET: i32 = windows_sys::Win32::Networking::WinSock::SOL_SOCKET as i32;
