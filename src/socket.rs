@@ -366,7 +366,8 @@ pub struct BingerUdp {
     tokio_sock: tokio::net::UdpSocket,
     #[cfg(feature = "metrics")]
     metrics: Option<BingerMetrics>,
-    adaptive_state: Option<std::sync::Mutex<AdaptiveState>>,
+    adaptive_send: Option<std::sync::Mutex<AdaptiveState>>,
+    adaptive_recv: Option<std::sync::Mutex<AdaptiveState>>,
 }
 
 impl BingerUdp {
@@ -463,7 +464,12 @@ impl BingerUdp {
             } else {
                 None
             },
-            adaptive_state: if config.adaptive_batching {
+            adaptive_send: if config.adaptive_batching {
+                Some(std::sync::Mutex::new(AdaptiveState::new(config.batch_size)))
+            } else {
+                None
+            },
+            adaptive_recv: if config.adaptive_batching {
                 Some(std::sync::Mutex::new(AdaptiveState::new(config.batch_size)))
             } else {
                 None
@@ -501,7 +507,7 @@ impl BingerUdp {
             match self.try_send_batch(batch) {
                 Ok(n) => return Ok(n),
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if let Some(ref state) = self.adaptive_state {
+                    if let Some(ref state) = self.adaptive_send {
                         let mut s = state.lock().unwrap();
                         s.record_would_block();
                         s.maybe_adjust();
@@ -543,7 +549,7 @@ impl BingerUdp {
             match self.try_recv_batch(batch) {
                 Ok(n) => return Ok(n),
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    if let Some(ref state) = self.adaptive_state {
+                    if let Some(ref state) = self.adaptive_recv {
                         let mut s = state.lock().unwrap();
                         s.record_would_block();
                         s.maybe_adjust();
@@ -593,9 +599,9 @@ impl BingerUdp {
             e
         })?;
 
-        if let Some(ref state) = self.adaptive_state {
+        if let Some(ref state) = self.adaptive_send {
             let mut s = state.lock().unwrap();
-            s.record_send(sent);
+            s.record_event();
         }
 
         #[cfg(feature = "metrics")]
@@ -644,9 +650,9 @@ impl BingerUdp {
             e
         })?;
 
-        if let Some(ref state) = self.adaptive_state {
+        if let Some(ref state) = self.adaptive_recv {
             let mut s = state.lock().unwrap();
-            s.record_send(received);
+            s.record_event();
         }
 
         #[cfg(feature = "metrics")]
@@ -979,7 +985,7 @@ impl BingerUdp {
     /// Panics if the adaptive batching mutex is poisoned.
     #[must_use]
     pub fn recommended_batch_size(&self) -> usize {
-        self.adaptive_state
+        self.adaptive_send
             .as_ref()
             .map_or(32, |s| s.lock().unwrap().recommended_size())
     }
