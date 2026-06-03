@@ -23,7 +23,6 @@ impl Default for Config {
     fn default() -> Self {
         Config::new()
             .with_batch_size(32)
-            .with_recv_buf_size(2048)
     }
 }
 
@@ -32,9 +31,6 @@ impl Config {
 
     /// 批量大小（默认 32）
     pub fn with_batch_size(self, n: usize) -> Self;
-
-    /// 每个包接收缓冲区大小（默认 2048）
-    pub fn with_recv_buf_size(self, n: usize) -> Self;
 
     /// OS 发送缓冲区 SO_SNDBUF（默认不设置）
     pub fn with_send_buf_size(self, n: usize) -> Self;

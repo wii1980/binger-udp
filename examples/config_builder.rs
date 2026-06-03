@@ -23,10 +23,9 @@ async fn main() -> std::io::Result<()> {
     // Build a custom config
     let config = Config::new()
         .with_batch_size(16)
-        .with_recv_buf_size(4096)
         .with_send_buf_size(65536);
 
-    println!("\nConfig: batch_size=16, recv_buf_size=4096, send_buf_size=65536");
+    println!("\nConfig: batch_size=16, send_buf_size=65536");
 
     // Create a receiver with custom config
     let receiver = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, config)?;

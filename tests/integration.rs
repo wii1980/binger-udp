@@ -322,7 +322,7 @@ async fn test_multiple_destinations() -> TestResult {
 
 #[tokio::test]
 async fn test_config_builder() -> TestResult {
-    let config = Config::new().with_batch_size(16).with_recv_buf_size(4096);
+    let config = Config::new().with_batch_size(16);
     let recv = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, config)?;
     let recv_addr = recv.local_addr()?;
 

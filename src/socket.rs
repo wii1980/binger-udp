@@ -25,7 +25,6 @@ use crate::sockaddr;
 /// | Field | Default |
 /// |-------|---------|
 /// | `batch_size` | 32 |
-/// | `recv_buf_size` (per-packet buffer) | 2048 |
 /// | `send_buf_size` (kernel `SO_SNDBUF`) | Not set (OS default) |
 /// | `recv_os_buf_size` (kernel `SO_RCVBUF`) | Not set (OS default) |
 /// | `adaptive_batching` | `false` |
@@ -38,14 +37,11 @@ use crate::sockaddr;
 ///
 /// let config = Config::new()
 ///     .with_batch_size(64)
-///     .with_recv_buf_size(4096)
 ///     .with_adaptive_batching(true);
 /// ```
 #[derive(Debug, Clone)]
 pub struct Config {
     pub(crate) batch_size: usize,
-    #[allow(dead_code)]
-    pub(crate) recv_buf_size: usize,
     pub(crate) send_buf_size: Option<usize>,
     pub(crate) recv_os_buf_size: Option<usize>,
     pub(crate) adaptive_batching: bool,
@@ -57,7 +53,6 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             batch_size: 32,
-            recv_buf_size: 2048,
             send_buf_size: None,
             recv_os_buf_size: None,
             adaptive_batching: false,
@@ -86,19 +81,6 @@ impl Config {
     #[must_use]
     pub fn with_batch_size(mut self, n: usize) -> Self {
         self.batch_size = n;
-        self
-    }
-
-    /// Sets the per-packet receive buffer size (in bytes).
-    ///
-    /// This controls how much memory is pre-allocated for each slot in
-    /// [`RecvBatch<N>`](crate::batch::RecvBatch). Datagrams larger than this
-    /// value will be truncated on receive.
-    ///
-    /// Default: `2048`.
-    #[must_use]
-    pub fn with_recv_buf_size(mut self, n: usize) -> Self {
-        self.recv_buf_size = n;
         self
     }
 
@@ -314,7 +296,7 @@ impl AdaptiveState {
         self.total_send_count += 1;
     }
 
-    fn record_send(&mut self, _count: usize) {
+    fn record_event(&mut self) {
         self.total_send_count += 1;
     }
 
