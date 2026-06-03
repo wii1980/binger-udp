@@ -1,12 +1,19 @@
+use crate::sys::{self, Fd};
 use std::io;
 use std::net::SocketAddr;
+#[cfg(unix)]
 use std::os::fd::AsRawFd;
-use crate::sys::{self, Fd};
+#[cfg(all(unix, not(feature = "tokio")))]
+use std::os::fd::IntoRawFd;
+#[cfg(windows)]
+use std::os::windows::io::AsRawSocket;
+#[cfg(all(windows, not(feature = "tokio")))]
+use std::os::windows::io::IntoRawSocket;
 
 use crate::batch::{RecvBatchRaw, SendBatchRaw};
-use crate::sockaddr;
 #[cfg(feature = "metrics")]
 use crate::metrics::BingerMetrics;
+use crate::sockaddr;
 
 /// Socket configuration for [`BingerUdp`].
 ///
@@ -27,7 +34,7 @@ use crate::metrics::BingerMetrics;
 /// # Example
 ///
 /// ```rust
-/// use udp_binger::Config;
+/// use binger_udp::Config;
 ///
 /// let config = Config::new()
 ///     .with_batch_size(64)
@@ -141,9 +148,8 @@ impl Config {
     /// Enables or disables built-in metrics collection.
     ///
     /// When enabled, [`BingerUdp::metrics`] returns a reference to the
-    /// [`BingerMetrics`](crate::metrics::BingerMetrics) instance with atomic
-    /// counters for packets sent/received, batch operations, syscalls, and
-    /// error events.
+    /// [`BingerMetrics`] instance with atomic counters for packets
+    /// sent/received, batch operations, syscalls, and error events.
     ///
     /// Default: `false`.
     ///
@@ -175,7 +181,7 @@ impl Config {
 /// # Example
 ///
 /// ```rust
-/// use udp_binger::platform_capabilities;
+/// use binger_udp::platform_capabilities;
 ///
 /// let caps = platform_capabilities();
 /// println!("Backend: {}", caps.backend_name);
@@ -230,7 +236,7 @@ pub struct PlatformCaps {
 /// # Example
 ///
 /// ```rust
-/// use udp_binger::platform_capabilities;
+/// use binger_udp::platform_capabilities;
 ///
 /// let caps = platform_capabilities();
 /// assert!(!caps.backend_name.is_empty());
@@ -263,13 +269,21 @@ pub fn platform_capabilities() -> PlatformCaps {
 
 const fn backends() -> &'static str {
     #[cfg(target_os = "linux")]
-    { "sendmmsg/recvmmsg (Linux)" }
+    {
+        "sendmmsg/recvmmsg (Linux)"
+    }
     #[cfg(target_os = "macos")]
-    { "sendmsg_x/recvmsg_x (macOS)" }
+    {
+        "sendmsg_x/recvmsg_x (macOS)"
+    }
     #[cfg(target_os = "windows")]
-    { "WSASendMsg/WSARecvMsg (Windows)" }
+    {
+        "WSASendMsg/WSARecvMsg (Windows)"
+    }
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    { "fallback (loop sendto/recvfrom)" }
+    {
+        "fallback (loop sendto/recvfrom)"
+    }
 }
 
 struct AdaptiveState {
@@ -348,7 +362,7 @@ impl AdaptiveState {
 /// # Example
 ///
 /// ```rust,no_run
-/// use udp_binger::{BingerUdp, SendBatch, RecvBatch, Config};
+/// use binger_udp::{BingerUdp, SendBatch, RecvBatch, Config};
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let socket = BingerUdp::from_std(
@@ -374,7 +388,32 @@ pub struct BingerUdp {
 }
 
 impl BingerUdp {
-        /// Creates a [`BingerUdp`] from a standard [`std::net::UdpSocket`] and
+    /// Get raw socket handle from a borrowed `UdpSocket`.
+    fn raw_fd_std(socket: &std::net::UdpSocket) -> Fd {
+        #[cfg(unix)]
+        {
+            socket.as_raw_fd()
+        }
+        #[cfg(windows)]
+        {
+            socket.as_raw_socket() as Fd
+        }
+    }
+
+    /// Get raw socket handle from an owned `UdpSocket` (consumes it).
+    #[cfg(not(feature = "tokio"))]
+    fn raw_fd_std_owned(socket: std::net::UdpSocket) -> Fd {
+        #[cfg(unix)]
+        {
+            socket.into_raw_fd()
+        }
+        #[cfg(windows)]
+        {
+            socket.into_raw_socket() as Fd
+        }
+    }
+
+    /// Creates a [`BingerUdp`] from a standard [`std::net::UdpSocket`] and
     /// [`Config`].
     ///
     /// The socket is set to non-blocking mode. OS-level buffer sizes specified
@@ -396,7 +435,7 @@ impl BingerUdp {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use udp_binger::{BingerUdp, Config};
+    /// use binger_udp::{BingerUdp, Config};
     ///
     /// let socket = BingerUdp::from_std(
     ///     std::net::UdpSocket::bind("0.0.0.0:0").unwrap(),
@@ -408,21 +447,29 @@ impl BingerUdp {
         socket.set_nonblocking(true)?;
 
         if let Some(size) = config.send_buf_size {
-            sockaddr::raw_setsockopt(socket.as_raw_fd(), sys::SOL_SOCKET, sys::SO_SNDBUF, size as libc::c_int)?;
+            sockaddr::raw_setsockopt(
+                Self::raw_fd_std(&socket),
+                sys::SOL_SOCKET,
+                sys::SO_SNDBUF,
+                size as libc::c_int,
+            )?;
         }
         if let Some(size) = config.recv_os_buf_size {
-            sockaddr::raw_setsockopt(socket.as_raw_fd(), sys::SOL_SOCKET, sys::SO_RCVBUF, size as libc::c_int)?;
+            sockaddr::raw_setsockopt(
+                Self::raw_fd_std(&socket),
+                sys::SOL_SOCKET,
+                sys::SO_RCVBUF,
+                size as libc::c_int,
+            )?;
         }
 
         #[cfg(feature = "tokio")]
-        let fd = socket.as_raw_fd();
+        let fd = Self::raw_fd_std(&socket);
         #[cfg(feature = "tokio")]
         let tokio_sock = tokio::net::UdpSocket::from_std(socket)?;
 
         #[cfg(not(feature = "tokio"))]
-        let fd = socket.into_raw_fd();
-        #[cfg(not(feature = "tokio"))]
-        drop(&socket);
+        let fd = Self::raw_fd_std_owned(socket);
 
         Ok(Self {
             fd,
@@ -934,11 +981,11 @@ impl BingerUdp {
             .map_or(32, |s| s.lock().unwrap().recommended_size())
     }
 
-    /// Returns a reference to the [`BingerMetrics`](crate::metrics::BingerMetrics)
-    /// instance, if metrics collection is enabled.
+    /// Returns a reference to the [`BingerMetrics`] instance, if metrics
+    /// collection is enabled.
     ///
     /// Metrics must be enabled at construction time via
-    /// [`Config::with_metrics(true)`]. This requires the `metrics` feature.
+    /// [`Config::with_metrics`]. This requires the `metrics` feature.
     ///
     /// Returns `None` if metrics are disabled.
     #[cfg(feature = "metrics")]
@@ -995,12 +1042,18 @@ impl BingerUdp {
 
     #[cfg(not(feature = "tokio"))]
     async fn wait_writable(&self) -> io::Result<()> {
-        Err(io::Error::new(io::ErrorKind::Other, "tokio feature disabled"))
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "tokio feature disabled",
+        ))
     }
 
     #[cfg(not(feature = "tokio"))]
     async fn wait_readable(&self) -> io::Result<()> {
-        Err(io::Error::new(io::ErrorKind::Other, "tokio feature disabled"))
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "tokio feature disabled",
+        ))
     }
 }
 

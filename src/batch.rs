@@ -4,7 +4,7 @@ use crate::error::BingerError;
 
 /// A kernel-provided software timestamp for a received UDP datagram.
 ///
-/// Represents the [`timespec`] structure attached to a packet when the
+/// Represents the [`libc::timespec`] structure attached to a packet when the
 /// `SO_TIMESTAMPNS` socket option is enabled. The timestamp is recorded
 /// by the network stack at the moment of reception.
 ///
@@ -51,7 +51,7 @@ impl Timestamp {
 /// # Example
 ///
 /// ```rust,no_run
-/// use udp_binger::SendBatch;
+/// use binger_udp::SendBatch;
 ///
 /// let mut batch = SendBatch::<32>::new();
 /// let addr = "192.168.1.1:8080".parse().unwrap();
@@ -169,7 +169,7 @@ impl<const N: usize> std::ops::DerefMut for SendBatch<N> {
 /// # Example
 ///
 /// ```rust,no_run
-/// use udp_binger::RecvBatch;
+/// use binger_udp::RecvBatch;
 ///
 /// let mut batch = RecvBatch::<32>::new(2048);
 /// // After recv_batch fills the batch:
@@ -726,7 +726,9 @@ mod tests {
         let (buf, slot_addr) = batch.buffer_mut(0);
         buf[..5].copy_from_slice(b"hello");
         *slot_addr = addr;
-        unsafe { batch.set_recv_len(0, 5); }
+        unsafe {
+            batch.set_recv_len(0, 5);
+        }
         batch.set_len(1);
 
         batch.clear();
@@ -751,12 +753,16 @@ mod tests {
         let (buf, slot_addr) = batch.buffer_mut(0);
         buf[..2].copy_from_slice(b"ab");
         *slot_addr = addr1;
-        unsafe { batch.set_recv_len(0, 2); }
+        unsafe {
+            batch.set_recv_len(0, 2);
+        }
 
         let (buf, slot_addr) = batch.buffer_mut(1);
         buf[..3].copy_from_slice(b"cde");
         *slot_addr = addr2;
-        unsafe { batch.set_recv_len(1, 3); }
+        unsafe {
+            batch.set_recv_len(1, 3);
+        }
 
         batch.set_len(2);
 
@@ -905,12 +911,16 @@ mod tests {
         let (buf, slot_addr) = raw.buffer_mut(0);
         buf[..3].copy_from_slice(b"foo");
         *slot_addr = addr;
-        unsafe { raw.set_recv_len(0, 3); }
+        unsafe {
+            raw.set_recv_len(0, 3);
+        }
 
         let (buf, slot_addr) = raw.buffer_mut(1);
         buf[..3].copy_from_slice(b"bar");
         *slot_addr = addr;
-        unsafe { raw.set_recv_len(1, 3); }
+        unsafe {
+            raw.set_recv_len(1, 3);
+        }
 
         raw.set_len(2);
 

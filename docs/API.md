@@ -1,4 +1,4 @@
-# udp-binger API 设计
+# binger-udp API 设计
 
 ## 1. 设计原则
 
@@ -362,7 +362,7 @@ if let Some(ts) = recv_batch.timestamp(i) {
 ### 基础用法
 
 ```rust
-use udp_binger::{BingerUdp, SendBatch, RecvBatch, Config};
+use binger_udp::{BingerUdp, SendBatch, RecvBatch, Config};
 use std::net::UdpSocket;
 
 #[tokio::main]
@@ -456,7 +456,7 @@ loop {
 ### GSO 分段发送（Linux）
 
 ```rust
-use udp_binger::{BingerUdp, Config};
+use binger_udp::{BingerUdp, Config};
 
 let binger = BingerUdp::from_std(socket, Config::default())?;
 
@@ -501,7 +501,7 @@ println!("recommended batch size: {recommended}");
 #[cfg(all(target_os = "linux", feature = "timestamping"))]
 {
     use std::net::UdpSocket;
-    use udp_binger::{BingerUdp, RecvBatch, Config};
+    use binger_udp::{BingerUdp, RecvBatch, Config};
 
     let binger = BingerUdp::from_std(
         UdpSocket::bind("0.0.0.0:0")?,
@@ -529,7 +529,7 @@ println!("recommended batch size: {recommended}");
 #[cfg(all(target_os = "linux", feature = "pktinfo"))]
 {
     use std::net::UdpSocket;
-    use udp_binger::{BingerUdp, RecvBatch, Config};
+    use binger_udp::{BingerUdp, RecvBatch, Config};
 
     let binger = BingerUdp::from_std(
         UdpSocket::bind("0.0.0.0:0")?,

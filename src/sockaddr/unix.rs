@@ -1,17 +1,24 @@
+// Unix implementation of socket address encoding/decoding and raw syscall wrappers.
+use crate::sys::Fd;
 use std::mem;
 use std::net::SocketAddr;
-use crate::sys::Fd;
 
-pub(crate) fn encode_sockaddr(addr: SocketAddr, storage: &mut libc::sockaddr_storage) -> libc::socklen_t {
+pub(crate) fn encode_sockaddr(
+    addr: SocketAddr,
+    storage: &mut libc::sockaddr_storage,
+) -> libc::socklen_t {
     storage.ss_family = 0;
     match addr {
         SocketAddr::V4(v4) => {
+            #[allow(clippy::unnecessary_cast)]
             let raw: libc::sockaddr_in = libc::sockaddr_in {
                 sin_family: libc::AF_INET as libc::sa_family_t,
                 sin_port: v4.port().to_be(),
                 sin_addr: libc::in_addr {
                     s_addr: u32::from_ne_bytes(v4.ip().octets()),
                 },
+                #[cfg(target_os = "macos")]
+                sin_len: 0,
                 sin_zero: [0; 8],
             };
             // SAFETY: storage is a valid mutable reference to sockaddr_storage,
@@ -23,6 +30,7 @@ pub(crate) fn encode_sockaddr(addr: SocketAddr, storage: &mut libc::sockaddr_sto
             mem::size_of::<libc::sockaddr_in>() as libc::socklen_t
         }
         SocketAddr::V6(v6) => {
+            #[allow(clippy::unnecessary_cast)]
             let raw: libc::sockaddr_in6 = libc::sockaddr_in6 {
                 sin6_family: libc::AF_INET6 as libc::sa_family_t,
                 sin6_port: v6.port().to_be(),
@@ -31,6 +39,8 @@ pub(crate) fn encode_sockaddr(addr: SocketAddr, storage: &mut libc::sockaddr_sto
                     s6_addr: v6.ip().octets(),
                 },
                 sin6_scope_id: v6.scope_id(),
+                #[cfg(target_os = "macos")]
+                sin6_len: 0,
             };
             // SAFETY: storage is a valid mutable reference to sockaddr_storage,
             // which is large enough to hold sockaddr_in6.
@@ -43,9 +53,15 @@ pub(crate) fn encode_sockaddr(addr: SocketAddr, storage: &mut libc::sockaddr_sto
     }
 }
 
-pub(crate) fn decode_sockaddr(storage: &libc::sockaddr_storage, len: libc::socklen_t) -> SocketAddr {
+pub(crate) fn decode_sockaddr(
+    storage: &libc::sockaddr_storage,
+    len: libc::socklen_t,
+) -> SocketAddr {
     if len == 0 {
-        return SocketAddr::V4(std::net::SocketAddrV4::new(std::net::Ipv4Addr::UNSPECIFIED, 0));
+        return SocketAddr::V4(std::net::SocketAddrV4::new(
+            std::net::Ipv4Addr::UNSPECIFIED,
+            0,
+        ));
     }
     match storage.ss_family as i32 {
         libc::AF_INET => {
@@ -67,7 +83,10 @@ pub(crate) fn decode_sockaddr(storage: &libc::sockaddr_storage, len: libc::sockl
                 sin6.sin6_scope_id,
             ))
         }
-        _ => SocketAddr::V4(std::net::SocketAddrV4::new(std::net::Ipv4Addr::UNSPECIFIED, 0)),
+        _ => SocketAddr::V4(std::net::SocketAddrV4::new(
+            std::net::Ipv4Addr::UNSPECIFIED,
+            0,
+        )),
     }
 }
 
@@ -103,10 +122,7 @@ pub(crate) fn raw_send(fd: Fd, data: &[u8]) -> std::io::Result<usize> {
     }
 }
 
-pub(crate) fn raw_recvfrom(
-    fd: Fd,
-    buf: &mut [u8],
-) -> std::io::Result<(usize, SocketAddr)> {
+pub(crate) fn raw_recvfrom(fd: Fd, buf: &mut [u8]) -> std::io::Result<(usize, SocketAddr)> {
     // SAFETY: zeroed() produces valid initialization for sockaddr_storage
     let mut storage: libc::sockaddr_storage = unsafe { mem::zeroed() };
     let mut addr_len = mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
@@ -133,9 +149,8 @@ pub(crate) fn raw_getsockname(fd: Fd) -> std::io::Result<SocketAddr> {
     let mut storage: libc::sockaddr_storage = unsafe { mem::zeroed() };
     let mut len = mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
     // SAFETY: getsockname with valid fd and sockaddr output
-    let ret = unsafe {
-        libc::getsockname(fd, &mut storage as *mut _ as *mut libc::sockaddr, &mut len)
-    };
+    let ret =
+        unsafe { libc::getsockname(fd, &mut storage as *mut _ as *mut libc::sockaddr, &mut len) };
     if ret < 0 {
         return Err(std::io::Error::last_os_error());
     }
@@ -240,7 +255,13 @@ pub(crate) fn raw_getsockopt(
     let mut len = mem::size_of_val(&val) as libc::socklen_t;
     // SAFETY: getsockopt with valid fd, level, optname, and output pointers
     let ret = unsafe {
-        libc::getsockopt(fd, level, optname, &mut val as *mut _ as *mut libc::c_void, &mut len)
+        libc::getsockopt(
+            fd,
+            level,
+            optname,
+            &mut val as *mut _ as *mut libc::c_void,
+            &mut len,
+        )
     };
     if ret < 0 {
         Err(std::io::Error::last_os_error())
@@ -250,14 +271,11 @@ pub(crate) fn raw_getsockopt(
 }
 
 #[cfg(test)]
+#[cfg(unix)]
 mod tests {
     use super::*;
     use std::net::*;
     use std::os::fd::AsRawFd;
-
-    // -----------------------------------------------------------------------
-    // encode_sockaddr / decode_sockaddr roundtrips
-    // -----------------------------------------------------------------------
 
     #[test]
     fn encode_decode_v4_loopback() {
@@ -318,10 +336,6 @@ mod tests {
         assert_eq!(addr, decoded);
     }
 
-    // -----------------------------------------------------------------------
-    // decode_sockaddr edge cases
-    // -----------------------------------------------------------------------
-
     #[test]
     fn decode_zero_len_returns_v4_unspecified() {
         let storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
@@ -335,7 +349,7 @@ mod tests {
     #[test]
     fn decode_unknown_family_returns_v4_unspecified() {
         let mut storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
-        storage.ss_family = 0xFF; // not AF_INET (2) nor AF_INET6 (10 on Linux)
+        storage.ss_family = 0xFF;
         let len = std::mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
         let decoded = decode_sockaddr(&storage, len);
         assert_eq!(
@@ -343,10 +357,6 @@ mod tests {
             SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0))
         );
     }
-
-    // -----------------------------------------------------------------------
-    // raw_sendto / raw_recvfrom roundtrip
-    // -----------------------------------------------------------------------
 
     #[test]
     fn raw_sendto_recvfrom_roundtrip() {
@@ -382,10 +392,6 @@ mod tests {
         assert_eq!(src, send_addr);
     }
 
-    // -----------------------------------------------------------------------
-    // raw_send (connected socket) / raw_recvfrom
-    // -----------------------------------------------------------------------
-
     #[test]
     fn raw_send_connected_recvfrom() {
         let recv = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -406,10 +412,6 @@ mod tests {
         assert_eq!(src, send_addr);
     }
 
-    // -----------------------------------------------------------------------
-    // raw_getsockname
-    // -----------------------------------------------------------------------
-
     #[test]
     fn raw_getsockname_returns_bound_addr() {
         let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -417,10 +419,6 @@ mod tests {
         assert_eq!(addr.ip(), "127.0.0.1".parse::<IpAddr>().unwrap());
         assert!(addr.port() > 0, "should have a non-zero OS-assigned port");
     }
-
-    // -----------------------------------------------------------------------
-    // raw_connect — connect to peer then verify by sending
-    // -----------------------------------------------------------------------
 
     #[test]
     fn raw_connect_to_peer() {
@@ -437,10 +435,6 @@ mod tests {
         let (n, _) = raw_recvfrom(recv.as_raw_fd(), &mut buf).unwrap();
         assert_eq!(&buf[..n], data);
     }
-
-    // -----------------------------------------------------------------------
-    // raw_setsockopt / raw_getsockopt roundtrip
-    // -----------------------------------------------------------------------
 
     #[test]
     fn raw_setsockopt_getsockopt_ttl_roundtrip() {
@@ -459,16 +453,8 @@ mod tests {
 
         raw_setsockopt(fd, libc::SOL_SOCKET, libc::SO_RCVBUF, 65536).unwrap();
         let val = raw_getsockopt(fd, libc::SOL_SOCKET, libc::SO_RCVBUF).unwrap();
-        // Kernel may double the requested value; just check it's at least what we asked for
-        assert!(
-            val >= 65536,
-            "SO_RCVBUF should be >= 65536, got {val}"
-        );
+        assert!(val >= 65536, "SO_RCVBUF should be >= 65536, got {val}");
     }
-
-    // -----------------------------------------------------------------------
-    // raw_setsockopt_u32 (dead_code, but should still work)
-    // -----------------------------------------------------------------------
 
     #[test]
     fn raw_setsockopt_u32_works() {
@@ -480,19 +466,13 @@ mod tests {
         assert_eq!(val, 64);
     }
 
-    // -----------------------------------------------------------------------
-    // raw_setsockopt_timeval (dead_code, but should still work)
-    // -----------------------------------------------------------------------
-
     #[test]
     fn raw_setsockopt_timeval_rcvtimeo() {
         let sock = UdpSocket::bind("127.0.0.1:0").unwrap();
         let fd = sock.as_raw_fd();
 
-        // Set a 100 ms receive timeout
         raw_setsockopt_timeval(fd, libc::SOL_SOCKET, libc::SO_RCVTIMEO, 100_000).unwrap();
 
-        // Verify the timeout takes effect: recv on empty socket should timeout
         let mut buf = [0u8; 64];
         let err = raw_recvfrom(fd, &mut buf).unwrap_err();
         assert_eq!(

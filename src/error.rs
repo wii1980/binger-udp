@@ -1,6 +1,6 @@
 use std::io;
 
-/// Errors that can occur in udp-binger operations.
+/// Errors that can occur in binger-udp operations.
 ///
 /// Covers batch overflow, buffer exhaustion, platform restrictions,
 /// and I/O errors from the operating system.
@@ -28,7 +28,7 @@ pub enum BingerError {
     Io(#[from] io::Error),
 }
 
-/// Convenience `Result` alias for udp-binger operations.
+/// Convenience `Result` alias for binger-udp operations.
 ///
 /// Equivalent to `Result<T, `[`BingerError`]`>`.
 pub type BingerResult<T> = Result<T, BingerError>;
@@ -57,9 +57,7 @@ mod tests {
 
     #[test]
     fn unsupported_feature_display() {
-        let err = BingerError::UnsupportedFeature {
-            feature: "gso",
-        };
+        let err = BingerError::UnsupportedFeature { feature: "gso" };
         assert_eq!(
             err.to_string(),
             "feature `gso` is not available on this platform"

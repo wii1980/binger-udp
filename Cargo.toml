@@ -1,11 +1,11 @@
 [package]
-name = "udp-binger"
+name = "binger-udp"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Cross-platform, batch-native UDP I/O with platform-optimal syscalls (sendmmsg/recvmmsg on Linux, GSO/GRO, and more)"
 license = "MIT"
-repository = "https://github.com/wii1980/rs-binger"
+repository = "https://github.com/wii1980/binger-udp"
 keywords = ["udp", "batch", "sendmmsg", "recvmmsg", "networking"]
 categories = ["network-programming", "asynchronous"]
 
@@ -81,6 +81,11 @@ windows-sys = { version = "0.59", features = ["Win32_Networking_WinSock", "Win32
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 criterion = "0.5"
+# clap-lex >=1.1.0 requires edition2024, which is not supported by Rust 1.75
+clap_lex = ">=1.0, <1.1"
+# clap >=4.6.0 also requires edition2024
+clap = ">=4.0, <4.6"
+rayon-core = ">=1.0, <1.13"
 
 [[bench]]
 name = "batch_bench"

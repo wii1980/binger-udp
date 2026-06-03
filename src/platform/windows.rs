@@ -19,11 +19,7 @@ use crate::sys::Fd;
 //  Socket-address helpers
 // ==================================================================
 
-fn encode_addr_into(
-    addr: SocketAddr,
-    storage: &mut WS::SOCKADDR_STORAGE,
-    namelen: &mut i32,
-) {
+fn encode_addr_into(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORAGE, namelen: &mut i32) {
     match addr {
         SocketAddr::V4(v4) => {
             let sin = WS::SOCKADDR_IN {
@@ -81,12 +77,9 @@ fn decode_sockaddr(storage: &WS::SOCKADDR_STORAGE, namelen: i32) -> SocketAddr {
                 unsafe { &*(storage as *const _ as *const WS::SOCKADDR_IN6) };
             let ip = Ipv6Addr::from(sin6.sin6_addr.u.Byte);
             let port = u16::from_be(sin6.sin6_port);
-            SocketAddr::V6(SocketAddrV6::new(
-                ip,
-                port,
-                sin6.sin6_flowinfo,
-                unsafe { sin6.Anonymous.sin6_scope_id },
-            ))
+            SocketAddr::V6(SocketAddrV6::new(ip, port, sin6.sin6_flowinfo, unsafe {
+                sin6.Anonymous.sin6_scope_id
+            }))
         }
         _ => SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0)),
     }
@@ -186,16 +179,8 @@ pub(crate) fn try_send_batch(fd: Fd, batch: &SendBatchRaw) -> io::Result<usize> 
         };
 
         let mut bytes_sent: u32 = 0;
-        let rc = unsafe {
-            WS::WSASendMsg(
-                fd,
-                &wsa_msg,
-                0,
-                &mut bytes_sent,
-                std::ptr::null_mut(),
-                None,
-            )
-        };
+        let rc =
+            unsafe { WS::WSASendMsg(fd, &wsa_msg, 0, &mut bytes_sent, std::ptr::null_mut(), None) };
 
         if rc == 0 {
             sent += 1;

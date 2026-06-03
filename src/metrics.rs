@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// # Example
 ///
 /// ```rust,no_run
-/// use udp_binger::BingerMetrics;
+/// use binger_udp::BingerMetrics;
 ///
 /// let m = BingerMetrics::default();
 /// let snapshot = m.snapshot();

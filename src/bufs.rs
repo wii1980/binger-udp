@@ -13,7 +13,7 @@ use crossbeam_queue::ArrayQueue;
 /// # Example
 ///
 /// ```rust
-/// use udp_binger::BufferPool;
+/// use binger_udp::BufferPool;
 ///
 /// let pool = BufferPool::new(16, 2048);
 /// let mut buf = pool.get();
@@ -115,7 +115,10 @@ mod tests {
         let buf2 = pool.get();
         // get() calls clear(), so len is 0 — but capacity is preserved
         assert_eq!(buf2.len(), 0, "buffer should be cleared on get()");
-        assert!(buf2.capacity() >= 5, "buffer should retain underlying capacity");
+        assert!(
+            buf2.capacity() >= 5,
+            "buffer should retain underlying capacity"
+        );
     }
 
     #[test]

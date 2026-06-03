@@ -12,7 +12,7 @@ use std::time::Duration;
 use criterion::{
     black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput,
 };
-use udp_binger::{BingerUdp, Config, RecvBatch, SendBatch};
+use binger_udp::{BingerUdp, Config, RecvBatch, SendBatch};
 
 /// Max batch capacity used for all const-generic batch types.
 /// Individual benchmarks only push `n` items where `n <= MAX_BATCH`.
@@ -30,17 +30,21 @@ const RECV_BUF_SIZE: usize = 2048;
 /// Returns `(sender, receiver, receiver_addr)`.
 fn setup_pair() -> (BingerUdp, BingerUdp, SocketAddr) {
     static RT: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
-    let rt = RT.get_or_init(|| tokio::runtime::Runtime::new().expect("failed to create tokio runtime"));
+    let rt =
+        RT.get_or_init(|| tokio::runtime::Runtime::new().expect("failed to create tokio runtime"));
 
     let receiver =
         std::net::UdpSocket::bind("127.0.0.1:0").expect("failed to bind receiver socket");
     let receiver_addr = receiver.local_addr().expect("failed to get receiver addr");
-    let sender =
-        std::net::UdpSocket::bind("127.0.0.1:0").expect("failed to bind sender socket");
+    let sender = std::net::UdpSocket::bind("127.0.0.1:0").expect("failed to bind sender socket");
 
     let config = Config::default();
-    let sender = rt.block_on(async { BingerUdp::from_std(sender, config.clone()) }).expect("failed to create sender");
-    let receiver = rt.block_on(async { BingerUdp::from_std(receiver, config) }).expect("failed to create receiver");
+    let sender = rt
+        .block_on(async { BingerUdp::from_std(sender, config.clone()) })
+        .expect("failed to create sender");
+    let receiver = rt
+        .block_on(async { BingerUdp::from_std(receiver, config) })
+        .expect("failed to create receiver");
 
     (sender, receiver, receiver_addr)
 }
@@ -128,15 +132,14 @@ fn setup_recv(n: usize, payload: &[u8]) -> BingerUdp {
 
     let mut send_batch = SendBatch::<MAX_BATCH>::new();
     for _ in 0..n {
-        send_batch.push(payload, addr).expect("batch capacity exceeded");
+        send_batch
+            .push(payload, addr)
+            .expect("batch capacity exceeded");
     }
     let sent = sender
         .try_send_batch(&mut *send_batch)
         .expect("pre-fill try_send_batch failed");
-    assert_eq!(
-        sent, n,
-        "pre-fill: expected {n} packets sent, got {sent}"
-    );
+    assert_eq!(sent, n, "pre-fill: expected {n} packets sent, got {sent}");
 
     receiver
 }
@@ -169,25 +172,21 @@ fn bench_recv(c: &mut Criterion) {
         });
 
         // --- Individual: N × RecvBatch<1> + try_recv_batch (N individual recvs) ---
-        group.bench_with_input(
-            BenchmarkId::new("individual", &id),
-            &n,
-            |b, &n| {
-                b.iter_batched(
-                    || setup_recv(n, &payload),
-                    |receiver| {
-                        for _ in 0..n {
-                            let mut single = RecvBatch::<1>::new(RECV_BUF_SIZE);
-                            let received = receiver
-                                .try_recv_batch(&mut *single)
-                                .expect("try_recv_batch single failed");
-                            black_box(received);
-                        }
-                    },
-                    BatchSize::SmallInput,
-                );
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("individual", &id), &n, |b, &n| {
+            b.iter_batched(
+                || setup_recv(n, &payload),
+                |receiver| {
+                    for _ in 0..n {
+                        let mut single = RecvBatch::<1>::new(RECV_BUF_SIZE);
+                        let received = receiver
+                            .try_recv_batch(&mut *single)
+                            .expect("try_recv_batch single failed");
+                        black_box(received);
+                    }
+                },
+                BatchSize::SmallInput,
+            );
+        });
     }
 
     group.finish();

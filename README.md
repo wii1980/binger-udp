@@ -1,51 +1,49 @@
-# udp-binger
-
-**大胃王** — 跨平台批量 UDP I/O，专吃大量小包。
+# binger-udp
 
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-blue.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-## 一句话描述
+**Cross-platform, batch-native UDP I/O with platform-optimal syscalls.**
 
-> Rust 生态中第一个「跨平台自适应批量 UDP I/O + 零分配 + Tokio async」的通用库。
+Send and receive tens of thousands of small UDP packets efficiently using a unified batch API. Under the hood it picks the best syscall available: `sendmmsg`/`recvmmsg` on Linux, `sendmsg_x`/`recvmsg_x` on macOS, `WSASendMsg`/`WSARecvMsg` on Windows, with a `sendto`/`recvfrom` fallback everywhere.
 
-## 为什么需要 binger
+## Why binger
 
-当前 Rust 中没有通用、高性能、跨平台的批量 UDP I/O 库：
+Rust has no general-purpose, cross-platform batch UDP I/O library:
 
-- `quinn-udp` — 好，但是为 QUIC 量身定制，API 不通用
-- `nix` — 有 sendmmsg，但 API 复杂，有零分配 UB 历史
-- `socket2` — sendmmsg PR 挂了一年没合
-- `fastudp` / `unix-udp-sock` — 2022 年后无维护
+- `quinn-udp` — great but QUIC-specific, API not portable
+- `nix` — has `sendmmsg` but complex API and history of zero-alloc UB
+- `socket2` — `sendmmsg` PR stalled for over a year
+- `fastudp` / `unix-udp-sock` — unmaintained since 2022
 
-**binger** 填补了这条空白：给你一个干净的批量 API，自动选平台最优的系统调用。
+**binger** fills the gap: a clean batch API that automatically selects the optimal platform backend.
 
-## 核心卖点
+## Highlights
 
-| 特性 | 说明 |
-|------|------|
-| 🍔 **批量优先** | `send_batch` / `recv_batch` 是主 API，单包是便利包装 |
-| 🏎️ **零分配热路径** | 预分配 buffer pool，send/recv 不碰堆 |
-| 🌍 **跨平台自动选择** | Linux→sendmmsg/GSO, macOS→sendmsg_x (dlsym), Windows→WSASendMsg (WSAIoctl), 通用→sendto/recvfrom |
-| ⚡ **Tokio 原生** | poll 驱动，不是 try_io 胶水 |
-| 📊 **内置指标** | 可选，零开销，batch 效率一目了然 |
-| 🔄 **自适应批量** | 根据背压自动调 batch_size |
-| 🛡️ **100% safe 公共 API** | unsafe 仅在平台模块，Miri 可测 |
+| Feature | Description |
+|---------|-------------|
+| **Batch-first** | `send_batch` / `recv_batch` are the primary API; single-packet is a convenience wrapper |
+| **Zero-alloc hot path** | Pre-allocated buffer pool, no heap allocations in send/recv |
+| **Cross-platform auto-select** | Linux→`sendmmsg`/GSO, macOS→`sendmsg_x` (dlsym), Windows→`WSASendMsg` (WSAIoctl), Generic→`sendto`/`recvfrom` |
+| **Tokio native** | Poll-driven, not `try_io` glue |
+| **Built-in metrics** | Optional, zero overhead, batch efficiency at a glance |
+| **Adaptive batching** | Dynamically adjusts batch size based on `WouldBlock` backpressure |
+| **100% safe public API** | `unsafe` confined to platform modules, Miri-testable |
 
-## 平台后端
+## Platform backends
 
-| 平台 | 发送 | 接收 | 额外优化 | 状态 |
-|------|------|------|---------|------|
-| Linux (connected) | `sendmsg` w/ GSO | `recvmmsg` + GRO | `pacing`, `busy-poll` | ✅ 已实现 |
-| Linux (multi-dest) | `sendmmsg` | `recvmmsg` | — | ✅ 已实现 |
-| macOS | `sendmsg_x` | `recvmsg_x` | dlsym 运行时检测 | ✅ 已实现 |
-| Windows | `WSASendMsg` | `WSARecvMsg` | WSAIoctl 运行时检测 | ✅ 已实现 |
-| Fallback | `sendto` | `recvfrom` | — | ✅ 已实现 |
+| Platform | Send | Recv | Extra optimizations | Status |
+|----------|------|------|-------------------|--------|
+| Linux (connected) | `sendmsg` w/ GSO | `recvmmsg` + GRO | `pacing`, `busy-poll` | ✅ |
+| Linux (multi-dest) | `sendmmsg` | `recvmmsg` | — | ✅ |
+| macOS | `sendmsg_x` | `recvmsg_x` | dlsym runtime detection | ✅ |
+| Windows | `WSASendMsg` | `WSARecvMsg` | WSAIoctl runtime detection | ✅ |
+| Fallback | `sendto` | `recvfrom` | — | ✅ |
 
-## 快速开始
+## Quick start
 
 ```rust
-use udp_binger::{BingerUdp, SendBatch, RecvBatch, Config};
+use binger_udp::{BingerUdp, SendBatch, RecvBatch, Config};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -54,14 +52,14 @@ async fn main() -> std::io::Result<()> {
         Config::default(),
     )?;
 
-    // 批量发送 — 32 个包，1 次 syscall
+    // Batch-send 32 packets in a single syscall
     let mut send = SendBatch::<32>::new();
     for i in 0..32 {
         send.push(b"hello", "192.168.1.1:8080".parse().unwrap())?;
     }
     let sent = socket.send_batch(&mut send).await?;
 
-    // 批量接收 — 1 次 syscall
+    // Batch-receive up to 32 packets in a single syscall
     let mut recv = RecvBatch::<32>::new(2048);
     let n = socket.recv_batch(&mut recv).await?;
     for i in 0..n {
@@ -72,66 +70,65 @@ async fn main() -> std::io::Result<()> {
 }
 ```
 
-## 与 KCP 集成
+## KCP integration
 
 ```rust
-use udp_binger::BingerUdp;
-use kcp2_std::transport::KcpTransport;
+use binger_udp::BingerUdp;
 
-// binger 可以轻松实现 KcpTransport trait，
-// 让 KCP 享受批量 I/O 的性能提升
+// BingerUdp implements traits needed by KCP transports,
+// enabling batch I/O for KCP sessions.
 ```
 
-## 安装
+## Installation
 
 ```toml
 [dependencies]
-udp-binger = "0.1"
+binger-udp = "0.1"
 ```
 
-可选 features：
+Optional features:
 
 ```toml
 [dependencies]
-udp-binger = { version = "0.1", features = ["metrics", "gso", "gro", "pacing", "busy-poll", "timestamping", "pktinfo"] }
+binger-udp = { version = "0.1", features = ["metrics", "gso", "gro", "pacing", "busy-poll", "timestamping", "pktinfo"] }
 ```
 
 **MSRV**: Rust 1.75+ (edition 2021)
 
-## 应用场景
+## Use cases
 
-| 场景 | 为什么适合 binger |
-|------|------------------|
-| KCP 协议层 | 批量 flush 输出，drain_output 一次 sendmmsg 处理多个 segment |
-| 游戏服务器 | 高包率、低延迟，recvmmsg 减少网络栈开销 |
-| DNS 服务器 | 多目标查询批量发送 |
-| Metrics 采集 | StatsD / Graphite 批量 ingest |
-| RTP 媒体流 | 需要 pacing + timestamp 的高吞吐流媒体 |
-| 服务网格代理 | 多连接透明代理，批量转发 |
+| Scenario | Why binger fits |
+|----------|----------------|
+| KCP protocol layer | Batch flush output, `drain_output` sends multiple segments in one `sendmmsg` |
+| Game servers | High packet rate, low latency, `recvmmsg` reduces kernel overhead |
+| DNS servers | Batch send to multiple targets |
+| Metrics collection | StatsD / Graphite batch ingest |
+| RTP media streaming | High-throughput streaming with pacing and timestamps |
+| Service mesh proxies | Transparent multi-connection batch forwarding |
 
-## 性能预期
+## Performance expectations
 
-| 场景 | 当前 (逐个 syscall) | binger | syscall 减少 |
-|------|-------------------|--------|-------------|
-| KCP flush 产 16 包 | 16 次 sendto | 1 次 sendmmsg | ~94% |
-| Listener 排队 32 包 | 32 次 recvfrom | 1 次 recvmmsg | ~97% |
-| 游戏 10K pps | 10K syscall/s | ~300 syscall/s | ~97% |
-| DNS 32 查询批量 | 32 次 sendto | 1 次 sendmmsg | ~97% |
+| Scenario | Current (per-packet) | binger | syscall reduction |
+|----------|---------------------|--------|-------------------|
+| KCP flush 16 segments | 16 `sendto` calls | 1 `sendmmsg` | ~94% |
+| Listener draining 32 packets | 32 `recvfrom` calls | 1 `recvmmsg` | ~97% |
+| Game server at 10K pps | 10K syscalls/s | ~300 syscalls/s | ~97% |
+| DNS 32 queries batch | 32 `sendto` calls | 1 `sendmmsg` | ~97% |
 
-## 文档
+## Documentation
 
-- [架构设计](docs/ARCHITECTURE.md)
-- [API 设计](docs/API.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [API design](docs/API.md)
 
-## 版本路线
+## Roadmap
 
-| 版本 | 内容 | 状态 |
-|------|------|------|
+| Version | Content | Status |
+|---------|---------|--------|
 | v0.1 | Linux sendmmsg/recvmmsg + fallback + Tokio + BufferPool | ✅ |
-| v0.2 | macOS + Windows 全平台 | ✅ |
-| v0.3 | GSO/GRO + 自适应批量 + Metrics | ✅ |
+| v0.2 | macOS + Windows cross-platform | ✅ |
+| v0.3 | GSO/GRO + adaptive batching + Metrics | ✅ |
 | v0.4 | Pacing + busy-poll + timestamping + pktinfo | ✅ |
-| v1.0 | 稳定 API + 全面文档 | — |
+| v1.0 | Stable API + comprehensive docs | — |
 
 ## License
 

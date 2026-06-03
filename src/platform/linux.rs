@@ -163,7 +163,10 @@ pub(crate) fn try_send_gso(fd: Fd, data: &[u8], segment_size: u16) -> io::Result
     // 64 bytes >= CMSG_SPACE(sizeof(u16)) which is ~24 bytes on x86_64.
     let cm = unsafe { libc::CMSG_FIRSTHDR(&mhdr) };
     if cm.is_null() {
-        return Err(io::Error::new(io::ErrorKind::Other, "CMSG_FIRSTHDR returned null"));
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "CMSG_FIRSTHDR returned null",
+        ));
     }
     unsafe {
         (*cm).cmsg_level = sys::IPPROTO_UDP;
@@ -218,7 +221,8 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
             };
 
             msgs[i].msg_hdr.msg_name = &mut addrs[i] as *mut _ as *mut libc::c_void;
-            msgs[i].msg_hdr.msg_namelen = mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
+            msgs[i].msg_hdr.msg_namelen =
+                mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
             msgs[i].msg_hdr.msg_iov = &mut iovecs[i] as *mut _;
             msgs[i].msg_hdr.msg_iovlen = 1;
             msgs[i].msg_hdr.msg_control = cmsg_bufs[i].as_mut_ptr() as *mut _;
@@ -228,7 +232,13 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
         // SAFETY: recvmmsg with valid fd, properly aligned arrays, and valid
         // capacity.  Wrapped in retry_eintr to handle EINTR transparently.
         let received = match retry_eintr(|| unsafe {
-            libc::recvmmsg(fd, msgs.as_mut_ptr(), capacity as u32, 0, std::ptr::null_mut()) as isize
+            libc::recvmmsg(
+                fd,
+                msgs.as_mut_ptr(),
+                capacity as u32,
+                0,
+                std::ptr::null_mut(),
+            ) as isize
         }) {
             Ok(n) => n,
             Err(e) if e.raw_os_error() == Some(libc::ENOSYS) => return fallback_recv(fd, batch),
@@ -243,8 +253,7 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
             // SAFETY: i < n <= capacity, recv_len <= buf.len().
             unsafe { batch.set_recv_len(out_idx, recv_len) };
 
-            let decoded_addr =
-                sockaddr::decode_sockaddr(&addrs[i], msgs[i].msg_hdr.msg_namelen);
+            let decoded_addr = sockaddr::decode_sockaddr(&addrs[i], msgs[i].msg_hdr.msg_namelen);
             let (_, addr_out) = batch.buffer_mut(out_idx);
             *addr_out = decoded_addr;
 
@@ -262,9 +271,7 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                     let ch = unsafe { &*cmsg_ptr };
                     match (ch.cmsg_level as i32, ch.cmsg_type as i32) {
                         #[cfg(feature = "gro")]
-                        (lvl, ty)
-                            if lvl == sys::IPPROTO_UDP && ty == sys::UDP_GRO =>
-                        {
+                        (lvl, ty) if lvl == sys::IPPROTO_UDP && ty == sys::UDP_GRO => {
                             // SAFETY: CMSG_DATA for a UDP_GRO cmsg contains
                             // a u16 segment size.
                             let data = unsafe { libc::CMSG_DATA(cmsg_ptr) as *const u16 };
@@ -272,9 +279,7 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                         }
 
                         #[cfg(feature = "timestamping")]
-                        (lvl, ty)
-                            if lvl == sys::SOL_SOCKET && ty == sys::SCM_TIMESTAMPNS =>
-                        {
+                        (lvl, ty) if lvl == sys::SOL_SOCKET && ty == sys::SCM_TIMESTAMPNS => {
                             // SAFETY: CMSG_DATA for SCM_TIMESTAMPNS contains
                             // a struct timespec.
                             let ts_ptr =
@@ -290,28 +295,20 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                         }
 
                         #[cfg(feature = "pktinfo")]
-                        (lvl, ty)
-                            if lvl == sys::IPPROTO_IP && ty == sys::IP_PKTINFO =>
-                        {
+                        (lvl, ty) if lvl == sys::IPPROTO_IP && ty == sys::IP_PKTINFO => {
                             // SAFETY: CMSG_DATA for IP_PKTINFO contains a
                             // struct in_pktinfo.
-                            let info = unsafe {
-                                &*(libc::CMSG_DATA(cmsg_ptr) as *const libc::in_pktinfo)
-                            };
-                            let ip =
-                                std::net::Ipv4Addr::from(u32::from_be(info.ipi_addr.s_addr));
+                            let info =
+                                unsafe { &*(libc::CMSG_DATA(cmsg_ptr) as *const libc::in_pktinfo) };
+                            let ip = std::net::Ipv4Addr::from(u32::from_be(info.ipi_addr.s_addr));
                             batch.set_dst_addr(
                                 out_idx,
-                                Some(std::net::SocketAddr::V4(
-                                    std::net::SocketAddrV4::new(ip, 0),
-                                )),
+                                Some(std::net::SocketAddr::V4(std::net::SocketAddrV4::new(ip, 0))),
                             );
                         }
 
                         #[cfg(feature = "pktinfo")]
-                        (lvl, ty)
-                            if lvl == sys::IPPROTO_IPV6 && ty == sys::IPV6_PKTINFO =>
-                        {
+                        (lvl, ty) if lvl == sys::IPPROTO_IPV6 && ty == sys::IPV6_PKTINFO => {
                             // SAFETY: CMSG_DATA for IPV6_PKTINFO contains a
                             // struct in6_pktinfo.
                             let info = unsafe {
@@ -320,9 +317,9 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                             let ip = std::net::Ipv6Addr::from(info.ipi6_addr.s6_addr);
                             batch.set_dst_addr(
                                 out_idx,
-                                Some(std::net::SocketAddr::V6(
-                                    std::net::SocketAddrV6::new(ip, 0, 0, 0),
-                                )),
+                                Some(std::net::SocketAddr::V6(std::net::SocketAddrV6::new(
+                                    ip, 0, 0, 0,
+                                ))),
                             );
                         }
 
@@ -330,8 +327,7 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                     }
                     // SAFETY: CMSG_NXTHDR on a valid msghdr + valid current
                     // cmsg pointer advances to the next cmsg.
-                    cmsg_ptr =
-                        unsafe { libc::CMSG_NXTHDR(&msgs[i].msg_hdr, cmsg_ptr) };
+                    cmsg_ptr = unsafe { libc::CMSG_NXTHDR(&msgs[i].msg_hdr, cmsg_ptr) };
                 }
 
                 #[cfg(feature = "gro")]
@@ -350,8 +346,7 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                     let mut offset = 0usize;
 
                     while offset < total_len {
-                        let seg_end =
-                            (offset + gro_seg_size as usize).min(total_len);
+                        let seg_end = (offset + gro_seg_size as usize).min(total_len);
                         let seg_len = seg_end - offset;
 
                         if seg_count == 0 {
@@ -363,25 +358,18 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                                 break;
                             }
                             let (dst_buf, _) = batch.buffer_mut(next_idx);
-                            dst_buf[..seg_len]
-                                .copy_from_slice(&coalesced[offset..seg_end]);
+                            dst_buf[..seg_len].copy_from_slice(&coalesced[offset..seg_end]);
                             // SAFETY: next_idx < capacity, seg_len <= buf.len().
                             unsafe { batch.set_recv_len(next_idx, seg_len) };
                             let (_, next_addr_out) = batch.buffer_mut(next_idx);
                             *next_addr_out = decoded_addr;
                             #[cfg(feature = "timestamping")]
                             {
-                                batch.set_timestamp(
-                                    next_idx,
-                                    batch.timestamp(first_idx),
-                                );
+                                batch.set_timestamp(next_idx, batch.timestamp(first_idx));
                             }
                             #[cfg(feature = "pktinfo")]
                             {
-                                batch.set_dst_addr(
-                                    next_idx,
-                                    batch.dst_addr(first_idx),
-                                );
+                                batch.set_dst_addr(next_idx, batch.dst_addr(first_idx));
                             }
                         }
 
@@ -394,7 +382,6 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                 }
             }
 
-
             out_idx += 1;
         }
 
@@ -402,9 +389,8 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
         Ok(out_idx)
     } else {
         // SAFETY: zeroed() for POD C structs is valid.
-        let mut addrs: Vec<libc::sockaddr_storage> = (0..capacity)
-            .map(|_| unsafe { mem::zeroed() })
-            .collect();
+        let mut addrs: Vec<libc::sockaddr_storage> =
+            (0..capacity).map(|_| unsafe { mem::zeroed() }).collect();
 
         let mut msgs: Vec<libc::mmsghdr> = Vec::with_capacity(capacity);
         let mut iovecs: Vec<libc::iovec> = Vec::with_capacity(capacity);
@@ -441,7 +427,13 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
         // SAFETY: recvmmsg with valid fd, stable vec backing, and valid
         // capacity.  Wrapped in retry_eintr for EINTR handling.
         let received = match retry_eintr(|| unsafe {
-            libc::recvmmsg(fd, msgs.as_mut_ptr(), capacity as u32, 0, std::ptr::null_mut()) as isize
+            libc::recvmmsg(
+                fd,
+                msgs.as_mut_ptr(),
+                capacity as u32,
+                0,
+                std::ptr::null_mut(),
+            ) as isize
         }) {
             Ok(n) => n,
             Err(e) if e.raw_os_error() == Some(libc::ENOSYS) => return fallback_recv(fd, batch),
@@ -456,15 +448,13 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
             // SAFETY: i < n <= capacity, recv_len <= buf.len().
             unsafe { batch.set_recv_len(out_idx, recv_len) };
 
-            let decoded_addr =
-                sockaddr::decode_sockaddr(&addrs[i], msgs[i].msg_hdr.msg_namelen);
+            let decoded_addr = sockaddr::decode_sockaddr(&addrs[i], msgs[i].msg_hdr.msg_namelen);
             let (_, addr_out) = batch.buffer_mut(out_idx);
             *addr_out = decoded_addr;
 
             #[cfg(any(feature = "gro", feature = "timestamping", feature = "pktinfo"))]
             {
-                let mut cmsg_ptr =
-                    unsafe { libc::CMSG_FIRSTHDR(&msgs[i].msg_hdr) };
+                let mut cmsg_ptr = unsafe { libc::CMSG_FIRSTHDR(&msgs[i].msg_hdr) };
                 #[cfg(feature = "gro")]
                 let mut gro_seg_size: u16 = 0;
 
@@ -472,22 +462,15 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                     let ch = unsafe { &*cmsg_ptr };
                     match (ch.cmsg_level as i32, ch.cmsg_type as i32) {
                         #[cfg(feature = "gro")]
-                        (lvl, ty)
-                            if lvl == sys::IPPROTO_UDP && ty == sys::UDP_GRO =>
-                        {
-                            let data =
-                                unsafe { libc::CMSG_DATA(cmsg_ptr) as *const u16 };
+                        (lvl, ty) if lvl == sys::IPPROTO_UDP && ty == sys::UDP_GRO => {
+                            let data = unsafe { libc::CMSG_DATA(cmsg_ptr) as *const u16 };
                             gro_seg_size = unsafe { *data };
                         }
 
                         #[cfg(feature = "timestamping")]
-                        (lvl, ty)
-                            if lvl == sys::SOL_SOCKET
-                                && ty == sys::SCM_TIMESTAMPNS =>
-                        {
-                            let ts_ptr = unsafe {
-                                libc::CMSG_DATA(cmsg_ptr) as *const libc::timespec
-                            };
+                        (lvl, ty) if lvl == sys::SOL_SOCKET && ty == sys::SCM_TIMESTAMPNS => {
+                            let ts_ptr =
+                                unsafe { libc::CMSG_DATA(cmsg_ptr) as *const libc::timespec };
                             let ts = unsafe { *ts_ptr };
                             batch.set_timestamp(
                                 out_idx,
@@ -499,49 +482,33 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                         }
 
                         #[cfg(feature = "pktinfo")]
-                        (lvl, ty)
-                            if lvl == sys::IPPROTO_IP
-                                && ty == sys::IP_PKTINFO =>
-                        {
-                            let info = unsafe {
-                                &*(libc::CMSG_DATA(cmsg_ptr)
-                                    as *const libc::in_pktinfo)
-                            };
-                            let ip = std::net::Ipv4Addr::from(u32::from_be(
-                                info.ipi_addr.s_addr,
-                            ));
+                        (lvl, ty) if lvl == sys::IPPROTO_IP && ty == sys::IP_PKTINFO => {
+                            let info =
+                                unsafe { &*(libc::CMSG_DATA(cmsg_ptr) as *const libc::in_pktinfo) };
+                            let ip = std::net::Ipv4Addr::from(u32::from_be(info.ipi_addr.s_addr));
                             batch.set_dst_addr(
                                 out_idx,
-                                Some(std::net::SocketAddr::V4(
-                                    std::net::SocketAddrV4::new(ip, 0),
-                                )),
+                                Some(std::net::SocketAddr::V4(std::net::SocketAddrV4::new(ip, 0))),
                             );
                         }
 
                         #[cfg(feature = "pktinfo")]
-                        (lvl, ty)
-                            if lvl == sys::IPPROTO_IPV6
-                                && ty == sys::IPV6_PKTINFO =>
-                        {
+                        (lvl, ty) if lvl == sys::IPPROTO_IPV6 && ty == sys::IPV6_PKTINFO => {
                             let info = unsafe {
-                                &*(libc::CMSG_DATA(cmsg_ptr)
-                                    as *const libc::in6_pktinfo)
+                                &*(libc::CMSG_DATA(cmsg_ptr) as *const libc::in6_pktinfo)
                             };
-                            let ip =
-                                std::net::Ipv6Addr::from(info.ipi6_addr.s6_addr);
+                            let ip = std::net::Ipv6Addr::from(info.ipi6_addr.s6_addr);
                             batch.set_dst_addr(
                                 out_idx,
-                                Some(std::net::SocketAddr::V6(
-                                    std::net::SocketAddrV6::new(ip, 0, 0, 0),
-                                )),
+                                Some(std::net::SocketAddr::V6(std::net::SocketAddrV6::new(
+                                    ip, 0, 0, 0,
+                                ))),
                             );
                         }
 
                         _ => {}
                     }
-                    cmsg_ptr = unsafe {
-                        libc::CMSG_NXTHDR(&msgs[i].msg_hdr, cmsg_ptr)
-                    };
+                    cmsg_ptr = unsafe { libc::CMSG_NXTHDR(&msgs[i].msg_hdr, cmsg_ptr) };
                 }
 
                 #[cfg(feature = "gro")]
@@ -558,8 +525,7 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                     let mut offset = 0usize;
 
                     while offset < total_len {
-                        let seg_end =
-                            (offset + gro_seg_size as usize).min(total_len);
+                        let seg_end = (offset + gro_seg_size as usize).min(total_len);
                         let seg_len = seg_end - offset;
 
                         if seg_count == 0 {
@@ -570,25 +536,17 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                                 break;
                             }
                             let (dst_buf, _) = batch.buffer_mut(next_idx);
-                            dst_buf[..seg_len]
-                                .copy_from_slice(&coalesced[offset..seg_end]);
+                            dst_buf[..seg_len].copy_from_slice(&coalesced[offset..seg_end]);
                             unsafe { batch.set_recv_len(next_idx, seg_len) };
-                            let (_, next_addr_out) =
-                                batch.buffer_mut(next_idx);
+                            let (_, next_addr_out) = batch.buffer_mut(next_idx);
                             *next_addr_out = decoded_addr;
                             #[cfg(feature = "timestamping")]
                             {
-                                batch.set_timestamp(
-                                    next_idx,
-                                    batch.timestamp(first_idx),
-                                );
+                                batch.set_timestamp(next_idx, batch.timestamp(first_idx));
                             }
                             #[cfg(feature = "pktinfo")]
                             {
-                                batch.set_dst_addr(
-                                    next_idx,
-                                    batch.dst_addr(first_idx),
-                                );
+                                batch.set_dst_addr(next_idx, batch.dst_addr(first_idx));
                             }
                         }
 

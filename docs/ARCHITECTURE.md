@@ -1,4 +1,4 @@
-# udp-binger 架构设计
+# binger-udp 架构设计
 
 ## 1. 定位与差异化
 

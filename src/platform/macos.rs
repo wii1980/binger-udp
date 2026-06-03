@@ -35,23 +35,19 @@ fn resolve_symbol(lock: &std::sync::OnceLock<usize>, name: &std::ffi::CStr) -> O
 
 fn sendmsg_x_fn() -> Option<SendmsgXFn> {
     static ADDR: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    static NAME: &std::ffi::CStr = unsafe {
-        std::ffi::CStr::from_bytes_with_nul_unchecked(b"sendmsg_x\0")
-    };
-    resolve_symbol(&ADDR, NAME)
-        .map(|addr| unsafe { mem::transmute::<usize, SendmsgXFn>(addr) })
+    static NAME: &std::ffi::CStr =
+        unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked(b"sendmsg_x\0") };
+    resolve_symbol(&ADDR, NAME).map(|addr| unsafe { mem::transmute::<usize, SendmsgXFn>(addr) })
 }
 
 fn recvmsg_x_fn() -> Option<RecvmsgXFn> {
     static ADDR: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    static NAME: &std::ffi::CStr = unsafe {
-        std::ffi::CStr::from_bytes_with_nul_unchecked(b"recvmsg_x\0")
-    };
-    resolve_symbol(&ADDR, NAME)
-        .map(|addr| unsafe { mem::transmute::<usize, RecvmsgXFn>(addr) })
+    static NAME: &std::ffi::CStr =
+        unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked(b"recvmsg_x\0") };
+    resolve_symbol(&ADDR, NAME).map(|addr| unsafe { mem::transmute::<usize, RecvmsgXFn>(addr) })
 }
 
-fn retry_eintr<F: Fn() -> isize>(f: F) -> io::Result<isize> {
+fn retry_eintr<F: FnMut() -> isize>(mut f: F) -> io::Result<isize> {
     loop {
         let n = f();
         if n >= 0 {

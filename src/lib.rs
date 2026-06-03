@@ -1,6 +1,6 @@
 //! Cross-platform, batch-native UDP I/O with platform-optimal syscalls.
 //!
-//! `udp-binger` gives you a clean batch API for sending and receiving UDP
+//! `binger-udp` gives you a clean batch API for sending and receiving UDP
 //! datagrams, automatically selecting the most efficient system call available
 //! on the current platform:
 //!
@@ -15,7 +15,7 @@
 //!
 //! ```rust,no_run
 //! use std::error::Error;
-//! use udp_binger::{BingerUdp, SendBatch, RecvBatch, Config};
+//! use binger_udp::{BingerUdp, SendBatch, RecvBatch, Config};
 //!
 //! # async fn example() -> Result<(), Box<dyn Error>> {
 //! let socket = BingerUdp::from_std(
@@ -34,7 +34,6 @@
 //! # Ok(()) }
 //! ```
 
-mod sys;
 pub mod batch;
 pub mod bufs;
 pub mod error;
@@ -42,11 +41,12 @@ pub mod metrics;
 mod platform;
 pub mod sockaddr;
 pub mod socket;
+mod sys;
 
-pub use batch::{RecvBatch, SendBatch};
 #[cfg(feature = "timestamping")]
 pub use batch::Timestamp;
+pub use batch::{RecvBatch, SendBatch};
 pub use bufs::BufferPool;
 pub use error::BingerError;
 pub use metrics::BingerMetrics;
-pub use socket::{BingerUdp, Config, PlatformCaps, platform_capabilities};
+pub use socket::{platform_capabilities, BingerUdp, Config, PlatformCaps};

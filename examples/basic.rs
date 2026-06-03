@@ -4,19 +4,13 @@
 // from one to the other, and prints the received message.
 
 use std::net::UdpSocket;
-use udp_binger::{BingerUdp, Config};
+use binger_udp::{BingerUdp, Config};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     // Create sender and receiver, both bound to OS-assigned ports
-    let sender = BingerUdp::from_std(
-        UdpSocket::bind("127.0.0.1:0")?,
-        Config::default(),
-    )?;
-    let receiver = BingerUdp::from_std(
-        UdpSocket::bind("127.0.0.1:0")?,
-        Config::default(),
-    )?;
+    let sender = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
+    let receiver = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
     let recv_addr = receiver.local_addr()?;
 
     // Send a single packet

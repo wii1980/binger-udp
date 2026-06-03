@@ -10,18 +10,12 @@
 
 use std::net::UdpSocket;
 use std::time::Duration;
-use udp_binger::{BingerUdp, SendBatch, RecvBatch, Config};
+use binger_udp::{BingerUdp, Config, RecvBatch, SendBatch};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let sender = BingerUdp::from_std(
-        UdpSocket::bind("127.0.0.1:0")?,
-        Config::default(),
-    )?;
-    let receiver = BingerUdp::from_std(
-        UdpSocket::bind("127.0.0.1:0")?,
-        Config::default(),
-    )?;
+    let sender = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
+    let receiver = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
     let recv_addr = receiver.local_addr()?;
 
     let mut send_batch = SendBatch::<8>::new();

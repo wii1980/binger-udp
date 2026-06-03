@@ -1,6 +1,6 @@
 use std::net::{SocketAddr, UdpSocket};
 
-use udp_binger::{BingerUdp, Config, RecvBatch, SendBatch, platform_capabilities};
+use binger_udp::{platform_capabilities, BingerUdp, Config, RecvBatch, SendBatch};
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -154,7 +154,7 @@ async fn test_send_batch_returns_count() -> TestResult {
             "send_batch with {count} items should return {count}"
         );
 
-            if count > 0 {
+        if count > 0 {
             let mut rb = RecvBatch::<8>::new(2048);
             let got = recv.recv_batch(&mut *rb).await?;
             assert_eq!(got, count, "drain should match item count");
@@ -231,7 +231,8 @@ async fn test_data_integrity() -> TestResult {
 
     for (i, (data, _)) in rb.iter().enumerate() {
         assert_eq!(
-            data, payloads[i],
+            data,
+            payloads[i],
             "payload {i} integrity: sent {} bytes, got {} bytes",
             payloads[i].len(),
             data.len(),
@@ -288,16 +289,13 @@ async fn test_large_batch_different_sizes() -> TestResult {
 
 #[tokio::test]
 async fn test_multiple_destinations() -> TestResult {
-    let recv_a =
-        BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
+    let recv_a = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
     let addr_a = recv_a.local_addr()?;
 
-    let recv_b =
-        BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
+    let recv_b = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
     let addr_b = recv_b.local_addr()?;
 
-    let send =
-        BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
+    let send = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
 
     let mut sb = SendBatch::<2>::new();
     sb.push(b"to-a", addr_a)?;
@@ -339,7 +337,11 @@ async fn test_config_builder() -> TestResult {
 
     let mut rb = RecvBatch::<1>::new(2048);
     recv.recv_batch(&mut *rb).await?;
-    assert_eq!(rb.data(0), b"config-builder", "data should survive config builder path");
+    assert_eq!(
+        rb.data(0),
+        b"config-builder",
+        "data should survive config builder path"
+    );
 
     Ok(())
 }
@@ -353,7 +355,10 @@ fn test_platform_capabilities() {
     let caps = platform_capabilities();
 
     assert!(caps.max_batch_size > 0, "max_batch_size must be > 0");
-    assert!(!caps.backend_name.is_empty(), "backend_name must not be empty");
+    assert!(
+        !caps.backend_name.is_empty(),
+        "backend_name must not be empty"
+    );
 
     #[cfg(target_os = "linux")]
     {
@@ -440,7 +445,11 @@ async fn test_clear_send_batch() -> TestResult {
 
     let mut rb = RecvBatch::<1>::new(2048);
     recv.recv_batch(&mut *rb).await?;
-    assert_eq!(rb.data(0), b"after-clear", "after-clear data should arrive intact");
+    assert_eq!(
+        rb.data(0),
+        b"after-clear",
+        "after-clear data should arrive intact"
+    );
 
     Ok(())
 }
@@ -457,7 +466,10 @@ async fn test_clear_recv_batch() -> TestResult {
     let mut rb = RecvBatch::<4>::new(2048);
     let n = recv.recv_batch(&mut *rb).await?;
     assert_eq!(n, 2, "should receive first wave");
-    assert!(!rb.iter().collect::<Vec<_>>().is_empty(), "batch should have data");
+    assert!(
+        !rb.iter().collect::<Vec<_>>().is_empty(),
+        "batch should have data"
+    );
 
     rb.clear();
     assert_eq!(rb.len(), 0, "len should be 0 after clear");

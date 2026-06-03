@@ -11,12 +11,16 @@ pub(crate) type Fd = std::os::fd::RawFd;
 pub(crate) const INVALID_FD: Fd = -1;
 
 // Re-export commonly used socket-level / protocol constants.
+// Linux-specific constants (UDP_GRO, UDP_SEGMENT, SCM_TIMESTAMPNS, SO_TIMESTAMPNS)
+// are only available on cfg(target_os = "linux").
 #[allow(unused_imports)]
 pub(crate) use libc::{
-    AF_INET, AF_INET6, IPPROTO_IP, IPPROTO_IPV6, IPPROTO_UDP, IP_PKTINFO, IP_TTL,
-    IPV6_PKTINFO, IPV6_RECVPKTINFO, SCM_TIMESTAMPNS, SOL_SOCKET, SO_RCVBUF, SO_SNDBUF,
-    SO_TIMESTAMPNS, UDP_GRO, UDP_SEGMENT,
+    AF_INET, AF_INET6, IPPROTO_IP, IPPROTO_IPV6, IPPROTO_UDP, IPV6_PKTINFO, IPV6_RECVPKTINFO,
+    IP_PKTINFO, IP_TTL, SOL_SOCKET, SO_RCVBUF, SO_SNDBUF,
 };
+#[cfg(target_os = "linux")]
+#[allow(unused_imports)]
+pub(crate) use libc::{SCM_TIMESTAMPNS, SO_TIMESTAMPNS, UDP_GRO, UDP_SEGMENT};
 
 #[allow(dead_code)]
 pub(crate) const SO_BUSY_POLL: libc::c_int = 75;

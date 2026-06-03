@@ -5,7 +5,7 @@
 // one packet to verify the custom config works correctly.
 
 use std::net::UdpSocket;
-use udp_binger::{BingerUdp, SendBatch, RecvBatch, Config, platform_capabilities};
+use binger_udp::{platform_capabilities, BingerUdp, Config, RecvBatch, SendBatch};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -29,24 +29,17 @@ async fn main() -> std::io::Result<()> {
     println!("\nConfig: batch_size=16, recv_buf_size=4096, send_buf_size=65536");
 
     // Create a receiver with custom config
-    let receiver = BingerUdp::from_std(
-        UdpSocket::bind("127.0.0.1:0")?,
-        config,
-    )?;
+    let receiver = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, config)?;
     let recv_addr = receiver.local_addr()?;
 
     // Create a sender with default config
-    let sender = BingerUdp::from_std(
-        UdpSocket::bind("127.0.0.1:0")?,
-        Config::default(),
-    )?;
+    let sender = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
 
     // Verify the capabilities method works
     let sock_caps = receiver.capabilities();
     println!(
         "Socket backend: {} (max batch {})",
-        sock_caps.backend_name,
-        sock_caps.max_batch_size,
+        sock_caps.backend_name, sock_caps.max_batch_size,
     );
 
     // Send and receive one packet to verify custom config works
@@ -62,10 +55,7 @@ async fn main() -> std::io::Result<()> {
 
     if n > 0 {
         let data = recv_batch.data(0);
-        println!(
-            "data: {:?}",
-            String::from_utf8_lossy(data),
-        );
+        println!("data: {:?}", String::from_utf8_lossy(data),);
     }
 
     Ok(())
