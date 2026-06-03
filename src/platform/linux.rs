@@ -163,10 +163,7 @@ pub(crate) fn try_send_gso(fd: Fd, data: &[u8], segment_size: u16) -> io::Result
     // 64 bytes >= CMSG_SPACE(sizeof(u16)) which is ~24 bytes on x86_64.
     let cm = unsafe { libc::CMSG_FIRSTHDR(&mhdr) };
     if cm.is_null() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "CMSG_FIRSTHDR returned null",
-        ));
+        return Err(io::Error::other("CMSG_FIRSTHDR returned null"));
     }
     unsafe {
         (*cm).cmsg_level = sys::IPPROTO_UDP;
