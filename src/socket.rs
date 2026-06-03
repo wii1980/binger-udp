@@ -42,13 +42,14 @@ use crate::sockaddr;
 ///     .with_adaptive_batching(true);
 /// ```
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct Config {
     pub(crate) batch_size: usize,
+    #[allow(dead_code)]
     pub(crate) recv_buf_size: usize,
     pub(crate) send_buf_size: Option<usize>,
     pub(crate) recv_os_buf_size: Option<usize>,
     pub(crate) adaptive_batching: bool,
+    #[cfg(feature = "metrics")]
     pub(crate) metrics_enabled: bool,
 }
 
@@ -60,6 +61,7 @@ impl Default for Config {
             send_buf_size: None,
             recv_os_buf_size: None,
             adaptive_batching: false,
+            #[cfg(feature = "metrics")]
             metrics_enabled: false,
         }
     }
@@ -382,8 +384,6 @@ pub struct BingerUdp {
     tokio_sock: tokio::net::UdpSocket,
     #[cfg(feature = "metrics")]
     metrics: Option<BingerMetrics>,
-    #[allow(dead_code)]
-    adaptive_batching: bool,
     adaptive_state: Option<std::sync::Mutex<AdaptiveState>>,
 }
 
@@ -481,7 +481,6 @@ impl BingerUdp {
             } else {
                 None
             },
-            adaptive_batching: config.adaptive_batching,
             adaptive_state: if config.adaptive_batching {
                 Some(std::sync::Mutex::new(AdaptiveState::new(config.batch_size)))
             } else {
@@ -599,7 +598,18 @@ impl BingerUdp {
     ///
     /// * [`BingerUdp::send_batch`] — retry-on-WouldBlock variant.
     pub fn try_send_batch(&self, batch: &mut SendBatchRaw) -> io::Result<usize> {
+        #[cfg(not(feature = "metrics"))]
         let sent = crate::platform::try_send_batch(self.fd, batch)?;
+        #[cfg(feature = "metrics")]
+        let sent = crate::platform::try_send_batch(self.fd, batch).map_err(|e| {
+            if let Some(ref m) = self.metrics {
+                m.inc_send_errors();
+                if e.kind() == io::ErrorKind::WouldBlock {
+                    m.inc_send_would_block();
+                }
+            }
+            e
+        })?;
 
         if let Some(ref state) = self.adaptive_state {
             let mut s = state.lock().unwrap();
@@ -639,7 +649,18 @@ impl BingerUdp {
     ///
     /// * [`BingerUdp::recv_batch`] — retry-on-WouldBlock variant.
     pub fn try_recv_batch(&self, batch: &mut RecvBatchRaw) -> io::Result<usize> {
+        #[cfg(not(feature = "metrics"))]
         let received = crate::platform::try_recv_batch(self.fd, batch)?;
+        #[cfg(feature = "metrics")]
+        let received = crate::platform::try_recv_batch(self.fd, batch).map_err(|e| {
+            if let Some(ref m) = self.metrics {
+                m.inc_recv_errors();
+                if e.kind() == io::ErrorKind::WouldBlock {
+                    m.inc_recv_would_block();
+                }
+            }
+            e
+        })?;
 
         if let Some(ref state) = self.adaptive_state {
             let mut s = state.lock().unwrap();
