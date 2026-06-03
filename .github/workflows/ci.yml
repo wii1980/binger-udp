@@ -64,6 +64,8 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # MSRV (Minimum Supported Rust Version) check
+  # Only verifies that the library itself compiles with Rust 1.75.
+  # Tests, benches, and examples are allowed to use newer features.
   # ---------------------------------------------------------------------------
   msrv:
     name: MSRV (1.75.0)
@@ -87,8 +89,8 @@ jobs:
           key: msrv-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: msrv-cargo-
 
-      - name: cargo check
-        run: cargo check
+      - name: cargo check --lib (MSRV 1.75)
+        run: cargo +1.75.0 check --lib --all-features
 
   # ---------------------------------------------------------------------------
   # Formatting check
