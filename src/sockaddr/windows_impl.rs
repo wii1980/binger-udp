@@ -132,6 +132,63 @@ pub(crate) fn raw_setsockopt(fd: Fd, level: i32, optname: i32, val: i32) -> io::
     }
 }
 
+pub(crate) fn raw_sendto(fd: Fd, data: &[u8], addr: SocketAddr) -> io::Result<usize> {
+    // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
+    let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
+    let addr_len = encode_sockaddr(addr, &mut storage);
+    // SAFETY: sendto with valid fd, data pointer, and sockaddr
+    // Returns number of bytes sent; SOCKET_ERROR (-1) on failure.
+    let ret = unsafe {
+        WS::sendto(
+            fd,
+            data.as_ptr().cast(),
+            data.len() as i32,
+            0,
+            &storage as *const _ as *const WS::SOCKADDR,
+            addr_len,
+        )
+    };
+    if ret != WS::SOCKET_ERROR {
+        Ok(ret as usize)
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+pub(crate) fn raw_send(fd: Fd, data: &[u8]) -> io::Result<usize> {
+    // SAFETY: send with valid fd and data pointer, for connected sockets
+    // Returns number of bytes sent; SOCKET_ERROR (-1) on failure.
+    let ret = unsafe { WS::send(fd, data.as_ptr().cast(), data.len() as i32, 0) };
+    if ret != WS::SOCKET_ERROR {
+        Ok(ret as usize)
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+pub(crate) fn raw_recvfrom(fd: Fd, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+    // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
+    let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
+    let mut addr_len = mem::size_of::<WS::SOCKADDR_STORAGE>() as i32;
+    // SAFETY: recvfrom with valid fd, buf pointer, and sockaddr output
+    // Returns number of bytes received; SOCKET_ERROR (-1) on failure.
+    let ret = unsafe {
+        WS::recvfrom(
+            fd,
+            buf.as_mut_ptr().cast(),
+            buf.len() as i32,
+            0,
+            &mut storage as *mut _ as *mut WS::SOCKADDR,
+            &mut addr_len,
+        )
+    };
+    if ret != WS::SOCKET_ERROR {
+        Ok((ret as usize, decode_sockaddr(&storage, addr_len)))
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
 pub(crate) fn raw_getsockopt(fd: Fd, level: i32, optname: i32) -> io::Result<i32> {
     let mut val: i32 = 0;
     let mut len = mem::size_of_val(&val) as i32;

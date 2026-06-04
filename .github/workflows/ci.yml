@@ -147,7 +147,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: features-linux-${{ matrix.feature-flags }}-${{ hashFiles('**/Cargo.lock') }}
+          key: features-linux-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             features-linux-cargo-
             ${{ runner.os }}-cargo-
@@ -192,7 +192,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: features-cross-${{ matrix.os }}-${{ matrix.feature-flags }}-${{ hashFiles('**/Cargo.lock') }}
+          key: features-cross-${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             features-cross-cargo-
             ${{ runner.os }}-cargo-
@@ -238,9 +238,13 @@ jobs:
 
       - name: cargo miri test (miri-safe)
         run: cargo miri test --features miri-safe
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation
 
       - name: cargo miri test (miri-safe, metrics)
         run: cargo miri test --features "miri-safe,metrics"
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation
 
   # ---------------------------------------------------------------------------
   # IPv6 tests — cross-platform, gracefully skips if IPv6 unavailable

@@ -11,8 +11,8 @@ pub(crate) type Fd = std::os::fd::RawFd;
 // are only available on cfg(target_os = "linux").
 #[allow(unused_imports)]
 pub(crate) use libc::{
-    IPPROTO_IP, IPPROTO_IPV6, IPPROTO_UDP, IPV6_PKTINFO,
-    IP_PKTINFO, IP_TTL, SOL_SOCKET, SO_RCVBUF, SO_SNDBUF,
+    IPPROTO_IP, IPPROTO_IPV6, IPPROTO_UDP, IPV6_PKTINFO, IP_PKTINFO, IP_TTL, SOL_SOCKET, SO_RCVBUF,
+    SO_SNDBUF,
 };
 #[cfg(target_os = "linux")]
 #[allow(unused_imports)]

@@ -12,7 +12,6 @@ pub(crate) const SO_RCVBUF: i32 = windows_sys::Win32::Networking::WinSock::SO_RC
 pub(crate) const IPPROTO_IP: i32 = windows_sys::Win32::Networking::WinSock::IPPROTO_IP;
 pub(crate) const IP_TTL: i32 = windows_sys::Win32::Networking::WinSock::IP_TTL;
 
-
 /// Close a socket handle.
 ///
 /// # Safety
