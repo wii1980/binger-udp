@@ -88,60 +88,6 @@ pub(crate) fn decode_sockaddr(storage: &WS::SOCKADDR_STORAGE, len: i32) -> Socke
     }
 }
 
-#[allow(dead_code)]
-pub(crate) fn raw_sendto(fd: Fd, data: &[u8], addr: SocketAddr) -> io::Result<usize> {
-    // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
-    let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
-    let addr_len = encode_sockaddr(addr, &mut storage);
-    // SAFETY: sendto with valid fd, data pointer, and sockaddr
-    let ret = unsafe {
-        WS::sendto(
-            fd,
-            data.as_ptr(),
-            data.len() as i32,
-            0,
-            &storage as *const _ as *const WS::SOCKADDR,
-            addr_len,
-        )
-    };
-    if ret == WS::SOCKET_ERROR {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(ret as usize)
-    }
-}
-
-#[allow(dead_code)]
-pub(crate) fn raw_send(fd: Fd, data: &[u8]) -> io::Result<usize> {
-    let ret = unsafe { WS::send(fd, data.as_ptr(), data.len() as i32, 0) };
-    if ret == WS::SOCKET_ERROR {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(ret as usize)
-    }
-}
-
-#[allow(dead_code)]
-pub(crate) fn raw_recvfrom(fd: Fd, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-    let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
-    let mut addr_len = mem::size_of::<WS::SOCKADDR_STORAGE>() as i32;
-    let ret = unsafe {
-        WS::recvfrom(
-            fd,
-            buf.as_mut_ptr(),
-            buf.len() as i32,
-            0,
-            &mut storage as *mut _ as *mut WS::SOCKADDR,
-            &mut addr_len,
-        )
-    };
-    if ret == WS::SOCKET_ERROR {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok((ret as usize, decode_sockaddr(&storage, addr_len)))
-    }
-}
-
 pub(crate) fn raw_getsockname(fd: Fd) -> io::Result<SocketAddr> {
     // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
     let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };

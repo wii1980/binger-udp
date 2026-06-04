@@ -494,10 +494,6 @@ impl BingerUdp {
     /// Returns the underlying I/O error on failure. `WouldBlock` is handled
     /// internally and never returned to the caller.
     ///
-    /// # Panics
-    ///
-    /// Panics if the adaptive batching mutex is poisoned.
-    ///
     /// # Related
     ///
     /// * [`BingerUdp::try_send_batch`] — non-blocking variant.
@@ -508,9 +504,10 @@ impl BingerUdp {
                 Ok(n) => return Ok(n),
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                     if let Some(ref state) = self.adaptive_send {
-                        let mut s = state.lock().unwrap();
-                        s.record_would_block();
-                        s.maybe_adjust();
+                        if let Ok(mut s) = state.lock() {
+                            s.record_would_block();
+                            s.maybe_adjust();
+                        }
                     }
                     self.wait_writable().await?;
                 }
@@ -536,10 +533,6 @@ impl BingerUdp {
     /// Returns the underlying I/O error on failure. `WouldBlock` is handled
     /// internally and never returned to the caller.
     ///
-    /// # Panics
-    ///
-    /// Panics if the adaptive batching mutex is poisoned.
-    ///
     /// # Related
     ///
     /// * [`BingerUdp::try_recv_batch`] — non-blocking variant.
@@ -550,9 +543,10 @@ impl BingerUdp {
                 Ok(n) => return Ok(n),
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                     if let Some(ref state) = self.adaptive_recv {
-                        let mut s = state.lock().unwrap();
-                        s.record_would_block();
-                        s.maybe_adjust();
+                        if let Ok(mut s) = state.lock() {
+                            s.record_would_block();
+                            s.maybe_adjust();
+                        }
                     }
                     self.wait_readable().await?;
                 }
@@ -578,10 +572,6 @@ impl BingerUdp {
     ///
     /// Returns the underlying I/O error on failure, including `WouldBlock`.
     ///
-    /// # Panics
-    ///
-    /// Panics if the adaptive batching mutex is poisoned.
-    ///
     /// # Related
     ///
     /// * [`BingerUdp::send_batch`] — retry-on-WouldBlock variant.
@@ -600,8 +590,9 @@ impl BingerUdp {
         })?;
 
         if let Some(ref state) = self.adaptive_send {
-            let mut s = state.lock().unwrap();
-            s.record_event();
+            if let Ok(mut s) = state.lock() {
+                s.record_event();
+            }
         }
 
         #[cfg(feature = "metrics")]
@@ -629,10 +620,6 @@ impl BingerUdp {
     ///
     /// Returns the underlying I/O error on failure, including `WouldBlock`.
     ///
-    /// # Panics
-    ///
-    /// Panics if the adaptive batching mutex is poisoned.
-    ///
     /// # Related
     ///
     /// * [`BingerUdp::recv_batch`] — retry-on-WouldBlock variant.
@@ -651,8 +638,9 @@ impl BingerUdp {
         })?;
 
         if let Some(ref state) = self.adaptive_recv {
-            let mut s = state.lock().unwrap();
-            s.record_event();
+            if let Ok(mut s) = state.lock() {
+                s.record_event();
+            }
         }
 
         #[cfg(feature = "metrics")]
@@ -981,13 +969,12 @@ impl BingerUdp {
     /// If adaptive batching is disabled, returns a fixed default of `32`.
     ///
     /// # Panics
-    ///
-    /// Panics if the adaptive batching mutex is poisoned.
     #[must_use]
     pub fn recommended_batch_size(&self) -> usize {
         self.adaptive_send
             .as_ref()
-            .map_or(32, |s| s.lock().unwrap().recommended_size())
+            .and_then(|s| s.lock().ok())
+            .map_or(32, |g| g.recommended_size())
     }
 
     /// Returns a reference to the [`BingerMetrics`] instance, if metrics
