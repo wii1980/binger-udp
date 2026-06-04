@@ -5,6 +5,9 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -110,3 +113,159 @@ jobs:
 
       - name: cargo fmt --check
         run: cargo fmt -- --check
+
+  # ---------------------------------------------------------------------------
+  # Feature flags matrix — test each feature combination independently
+  # on Ubuntu with stable Rust
+  # ---------------------------------------------------------------------------
+  features:
+    name: features (${{ matrix.feature-flags }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        feature-flags:
+          - "--features gso"
+          - "--features gro"
+          - "--features gso,gro"
+          - "--features metrics"
+          - "--features timestamping"
+          - "--features pktinfo"
+          - "--features pacing"
+          - "--features busy-poll"
+          - "--features miri-safe"
+          - "--features miri-safe,metrics"
+          - "--all-features"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: features-${{ matrix.feature-flags }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            features-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: cargo build ${{ matrix.feature-flags }}
+        run: cargo build ${{ matrix.feature-flags }}
+
+      - name: cargo test ${{ matrix.feature-flags }}
+        run: cargo test ${{ matrix.feature-flags }}
+
+      - name: cargo clippy ${{ matrix.feature-flags }}
+        run: cargo clippy ${{ matrix.feature-flags }} -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Miri — memory safety checking with nightly Rust
+  # Tests with miri-safe and miri-safe+metrics feature combinations
+  # ---------------------------------------------------------------------------
+  miri:
+    name: Miri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly Rust with Miri
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly
+          components: miri
+          cache: false
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: miri-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: miri-cargo-
+
+      - name: cargo miri setup
+        run: cargo miri setup
+
+      - name: cargo miri test (miri-safe)
+        run: cargo miri test --features miri-safe
+
+      - name: cargo miri test (miri-safe, metrics)
+        run: cargo miri test --features "miri-safe,metrics"
+
+  # ---------------------------------------------------------------------------
+  # IPv6 tests — requires IPv6 loopback enabled on the runner
+  # ---------------------------------------------------------------------------
+  ipv6:
+    name: IPv6
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ipv6-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ipv6-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: Enable IPv6 on runner
+        run: sudo sysctl -w net.ipv6.conf.lo.disable_ipv6=0 || true
+
+      - name: cargo test (IPv6)
+        run: cargo test --test ipv6
+
+  # ---------------------------------------------------------------------------
+  # Stress tests — only on manual trigger (workflow_dispatch) or
+  # weekly schedule (Sunday 03:00 UTC) on main branch
+  # ---------------------------------------------------------------------------
+  stress:
+    name: Stress tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: stress-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            stress-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: cargo test (concurrent)
+        run: cargo test --test concurrent
+
+      - name: cargo test (boundary)
+        run: cargo test --test boundary
