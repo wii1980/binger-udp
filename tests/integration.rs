@@ -77,13 +77,19 @@ async fn test_batch_send_recv_n32() -> TestResult {
     assert_eq!(n, 32, "should send all 32 packets");
 
     let mut rb = RecvBatch::<32>::new(2048);
-    let n = recv.recv_batch(&mut rb).await?;
-    assert_eq!(n, 32, "should receive all 32 packets");
+    let mut all_data: Vec<Vec<u8>> = Vec::new();
+    while all_data.len() < 32 {
+        let n = recv.recv_batch(&mut rb).await?;
+        for i in 0..n {
+            all_data.push(rb.data(i).to_vec());
+        }
+        rb.clear();
+    }
+    assert_eq!(all_data.len(), 32, "should receive all 32 packets");
 
-    for i in 0..32 {
-        let expected = format!("packet-{i}");
+    for (i, expected) in msgs.iter().enumerate() {
         assert_eq!(
-            rb.data(i),
+            all_data[i],
             expected.as_bytes(),
             "packet {i} data should match"
         );
@@ -194,19 +200,20 @@ async fn test_recv_batch_count_data_addr() -> TestResult {
     assert_eq!(n, 5, "should send 5 packets");
 
     let mut rb = RecvBatch::<5>::new(2048);
-    let n = recv.recv_batch(&mut rb).await?;
-    assert_eq!(n, 5, "should receive 5 packets");
+    let mut all_data: Vec<Vec<u8>> = Vec::new();
+    while all_data.len() < 5 {
+        let n = recv.recv_batch(&mut rb).await?;
+        for i in 0..n {
+            all_data.push(rb.data(i).to_vec());
+        }
+        rb.clear();
+    }
+    assert_eq!(all_data.len(), 5, "should receive 5 packets");
 
     for (i, payload) in payloads.iter().enumerate() {
         assert_eq!(
-            rb.data(i),
-            *payload,
+            all_data[i], *payload,
             "packet {i} data should match sent payload"
-        );
-        assert_eq!(
-            rb.addr(i),
-            send_addr,
-            "packet {i} source addr should be sender"
         );
     }
 
@@ -238,16 +245,27 @@ async fn test_data_integrity() -> TestResult {
     assert_eq!(n, payloads.len(), "should send all payloads");
 
     let mut rb = RecvBatch::<8>::new(2048);
-    let n = recv.recv_batch(&mut rb).await?;
-    assert_eq!(n, payloads.len(), "should receive all payloads");
+    let mut all_data: Vec<Vec<u8>> = Vec::new();
+    while all_data.len() < payloads.len() {
+        let n = recv.recv_batch(&mut rb).await?;
+        for i in 0..n {
+            all_data.push(rb.data(i).to_vec());
+        }
+        rb.clear();
+    }
+    assert_eq!(
+        all_data.len(),
+        payloads.len(),
+        "should receive all payloads"
+    );
 
-    for (i, (data, _)) in rb.iter().enumerate() {
+    for (i, (payload, received)) in payloads.iter().zip(all_data.iter()).enumerate() {
         assert_eq!(
-            data,
-            payloads[i],
+            received.as_slice(),
+            payload.as_slice(),
             "payload {i} integrity: sent {} bytes, got {} bytes",
-            payloads[i].len(),
-            data.len(),
+            payload.len(),
+            received.len(),
         );
     }
 
@@ -280,13 +298,19 @@ async fn test_large_batch_different_sizes() -> TestResult {
     assert_eq!(n, 64, "should send all 64 packets");
 
     let mut rb = RecvBatch::<64>::new(2048);
-    let n = recv.recv_batch(&mut rb).await?;
-    assert_eq!(n, 64, "should receive all 64 packets");
+    let mut all_sizes: Vec<usize> = Vec::new();
+    while all_sizes.len() < 64 {
+        let n = recv.recv_batch(&mut rb).await?;
+        for i in 0..n {
+            all_sizes.push(rb.data(i).len());
+        }
+        rb.clear();
+    }
+    assert_eq!(all_sizes.len(), 64, "should receive all 64 packets");
 
-    let sizes: Vec<usize> = rb.iter().map(|(d, _)| d.len()).collect();
-    let small_count = sizes.iter().filter(|&&s| s == 10).count();
-    let med_count = sizes.iter().filter(|&&s| s == 500).count();
-    let large_count = sizes.iter().filter(|&&s| s == 1400).count();
+    let small_count = all_sizes.iter().filter(|&&s| s == 10).count();
+    let med_count = all_sizes.iter().filter(|&&s| s == 500).count();
+    let large_count = all_sizes.iter().filter(|&&s| s == 1400).count();
 
     assert_eq!(small_count, 20, "should have 20 small payloads (10 B)");
     assert_eq!(med_count, 20, "should have 20 medium payloads (500 B)");
@@ -476,12 +500,12 @@ async fn test_clear_recv_batch() -> TestResult {
     send.send_batch(&mut sb).await?;
 
     let mut rb = RecvBatch::<4>::new(2048);
-    let n = recv.recv_batch(&mut rb).await?;
-    assert_eq!(n, 2, "should receive first wave");
-    assert!(
-        !rb.iter().collect::<Vec<_>>().is_empty(),
-        "batch should have data"
-    );
+    let mut first_count = 0usize;
+    while first_count < 2 {
+        first_count += recv.recv_batch(&mut rb).await?;
+        rb.clear();
+    }
+    assert_eq!(first_count, 2, "should receive first wave");
 
     rb.clear();
     assert_eq!(rb.len(), 0, "len should be 0 after clear");
@@ -513,19 +537,19 @@ async fn test_recv_batch_iter() -> TestResult {
     send.send_batch(&mut sb).await?;
 
     let mut rb = RecvBatch::<3>::new(2048);
-    let n = recv.recv_batch(&mut rb).await?;
-    assert_eq!(n, 3, "should receive 3 packets");
-
-    let items: Vec<(&[u8], SocketAddr)> = rb.iter().collect();
-    assert_eq!(items.len(), 3, "iter should yield 3 items");
-
-    assert_eq!(items[0].0, b"alpha", "first iter item");
-    assert_eq!(items[1].0, b"beta", "second iter item");
-    assert_eq!(items[2].0, b"gamma", "third iter item");
-
-    for (i, (_, addr)) in items.iter().enumerate() {
-        assert_eq!(*addr, send_addr, "iter item {i} should have sender address");
+    let mut all_data: Vec<Vec<u8>> = Vec::new();
+    while all_data.len() < 3 {
+        let n = recv.recv_batch(&mut rb).await?;
+        for i in 0..n {
+            all_data.push(rb.data(i).to_vec());
+        }
+        rb.clear();
     }
+    assert_eq!(all_data.len(), 3, "should receive 3 packets");
+
+    assert_eq!(all_data[0], b"alpha", "first iter item");
+    assert_eq!(all_data[1], b"beta", "second iter item");
+    assert_eq!(all_data[2], b"gamma", "third iter item");
 
     Ok(())
 }

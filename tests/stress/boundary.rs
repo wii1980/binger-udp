@@ -326,9 +326,19 @@ async fn test_recv_batch_clear_and_reuse() -> TestResult {
         }
         rb.clear();
     }
-    assert_eq!(second_items.len(), 2, "second wave: should receive 2 packets");
-    assert_eq!(second_items[0], b"second-X", "second wave packet 0 mismatch");
-    assert_eq!(second_items[1], b"second-Y", "second wave packet 1 mismatch");
+    assert_eq!(
+        second_items.len(),
+        2,
+        "second wave: should receive 2 packets"
+    );
+    assert_eq!(
+        second_items[0], b"second-X",
+        "second wave packet 0 mismatch"
+    );
+    assert_eq!(
+        second_items[1], b"second-Y",
+        "second wave packet 1 mismatch"
+    );
 
     Ok(())
 }
