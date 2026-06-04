@@ -217,11 +217,18 @@ async fn test_mixed_payload_sizes_batch() -> TestResult {
     let n = send.send_batch(&mut sb).await?;
     assert_eq!(n, 5, "should send 5 packets with mixed sizes");
 
+    let mut all_data: Vec<Vec<u8>> = Vec::new();
     let mut rb = RecvBatch::<5>::new(2048);
-    let n = recv.recv_batch(&mut rb).await?;
-    assert_eq!(n, 5, "should receive 5 packets with mixed sizes");
+    while all_data.len() < 5 {
+        let n = recv.recv_batch(&mut rb).await?;
+        for i in 0..n {
+            all_data.push(rb.data(i).to_vec());
+        }
+        rb.clear();
+    }
+    assert_eq!(all_data.len(), 5, "should receive 5 packets with mixed sizes");
 
-    let sizes: Vec<usize> = rb.iter().map(|(d, _)| d.len()).collect();
+    let sizes: Vec<usize> = all_data.iter().map(|d| d.len()).collect();
     assert!(sizes.contains(&0), "batch should contain 0-byte payload");
     assert!(sizes.contains(&1), "batch should contain 1-byte payload");
     assert!(

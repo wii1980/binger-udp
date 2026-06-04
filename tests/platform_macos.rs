@@ -148,12 +148,17 @@ mod macos {
             "macOS try_send_batch via connected path should send 2"
         );
 
-        // Receive all 3 packets
+        // Receive all 3 packets (may arrive across multiple recv_batch calls)
+        let mut items: Vec<(Vec<u8>, SocketAddr)> = Vec::new();
         let mut rb = RecvBatch::<3>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
-        assert_eq!(n, 3, "macOS should receive all 3 connected packets");
-
-        let items: Vec<(&[u8], SocketAddr)> = rb.iter().collect();
+        while items.len() < 3 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                items.push((rb.data(i).to_vec(), rb.addr(i)));
+            }
+            rb.clear();
+        }
+        assert_eq!(items.len(), 3, "macOS should receive all 3 connected packets");
         assert!(
             items.iter().any(|(d, _)| *d == b"conn-single"),
             "macOS connected: should contain conn-single"
