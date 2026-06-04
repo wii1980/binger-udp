@@ -182,10 +182,10 @@ pub struct PlatformCaps {
     /// Whether `recvmsg_x` is available (macOS only, runtime-detected via dlsym).
     #[cfg(target_os = "macos")]
     pub supports_recvmsg_x: bool,
-    /// Whether `WSASendMsg` is available (Windows only, runtime-detected via WSAIoctl).
+    /// Whether `WSASendMsg` is available (Windows only, runtime-detected via `WSAIoctl`).
     #[cfg(target_os = "windows")]
     pub supports_wsa_send_msg: bool,
-    /// Whether `WSARecvMsg` is available (Windows only, runtime-detected via WSAIoctl).
+    /// Whether `WSARecvMsg` is available (Windows only, runtime-detected via `WSAIoctl`).
     #[cfg(target_os = "windows")]
     pub supports_wsa_recv_msg: bool,
     /// Whether Generic Segmentation Offload (GSO) is available (Linux, requires `gso` feature).
