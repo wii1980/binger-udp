@@ -189,7 +189,7 @@ async fn test_send_batch_returns_count() -> TestResult {
 #[tokio::test]
 async fn test_recv_batch_count_data_addr() -> TestResult {
     let (send, recv, recv_addr) = make_pair()?;
-    let send_addr = send.local_addr()?;
+    let _send_addr = send.local_addr()?;
 
     let payloads: [&[u8]; 5] = [b"one", b"two", b"three", b"four", b"five"];
     let mut sb = SendBatch::<5>::new();
@@ -528,7 +528,7 @@ async fn test_clear_recv_batch() -> TestResult {
 #[tokio::test]
 async fn test_recv_batch_iter() -> TestResult {
     let (send, recv, recv_addr) = make_pair()?;
-    let send_addr = send.local_addr()?;
+    let _send_addr = send.local_addr()?;
 
     let mut sb = SendBatch::<3>::new();
     sb.push(b"alpha", recv_addr)?;
