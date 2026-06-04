@@ -11,7 +11,9 @@ pub(crate) const SO_SNDBUF: i32 = windows_sys::Win32::Networking::WinSock::SO_SN
 pub(crate) const SO_RCVBUF: i32 = windows_sys::Win32::Networking::WinSock::SO_RCVBUF as i32;
 pub(crate) const IPPROTO_IP: i32 = windows_sys::Win32::Networking::WinSock::IPPROTO_IP as i32;
 pub(crate) const IP_TTL: i32 = windows_sys::Win32::Networking::WinSock::IP_TTL as i32;
+#[allow(dead_code)]
 pub(crate) const AF_INET: i32 = windows_sys::Win32::Networking::WinSock::AF_INET as i32;
+#[allow(dead_code)]
 pub(crate) const AF_INET6: i32 = windows_sys::Win32::Networking::WinSock::AF_INET6 as i32;
 
 /// Close a socket handle.

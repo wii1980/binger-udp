@@ -88,6 +88,7 @@ pub(crate) fn decode_sockaddr(storage: &WS::SOCKADDR_STORAGE, len: i32) -> Socke
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn raw_sendto(fd: Fd, data: &[u8], addr: SocketAddr) -> io::Result<usize> {
     // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
     let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
@@ -110,6 +111,7 @@ pub(crate) fn raw_sendto(fd: Fd, data: &[u8], addr: SocketAddr) -> io::Result<us
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn raw_send(fd: Fd, data: &[u8]) -> io::Result<usize> {
     // SAFETY: send with valid fd and data pointer, for connected sockets
     let ret = unsafe { WS::send(fd, data.as_ptr() as *const u8, data.len() as i32, 0) };
@@ -120,6 +122,7 @@ pub(crate) fn raw_send(fd: Fd, data: &[u8]) -> io::Result<usize> {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn raw_recvfrom(fd: Fd, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
     // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
     let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };

@@ -115,11 +115,10 @@ jobs:
         run: cargo fmt -- --check
 
   # ---------------------------------------------------------------------------
-  # Feature flags matrix — test each feature combination independently
-  # on Ubuntu with stable Rust
+  # Feature flags matrix — Linux-only features (gso, gro, timestamping, etc.)
   # ---------------------------------------------------------------------------
-  features:
-    name: features (${{ matrix.feature-flags }})
+  features-linux:
+    name: features-linux (${{ matrix.feature-flags }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -128,14 +127,10 @@ jobs:
           - "--features gso"
           - "--features gro"
           - "--features gso,gro"
-          - "--features metrics"
           - "--features timestamping"
           - "--features pktinfo"
           - "--features pacing"
           - "--features busy-poll"
-          - "--features miri-safe"
-          - "--features miri-safe,metrics"
-          - "--all-features"
     steps:
       - uses: actions/checkout@v4
 
@@ -152,9 +147,54 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: features-${{ matrix.feature-flags }}-${{ hashFiles('**/Cargo.lock') }}
+          key: features-linux-${{ matrix.feature-flags }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            features-cargo-
+            features-linux-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: cargo build ${{ matrix.feature-flags }}
+        run: cargo build ${{ matrix.feature-flags }}
+
+      - name: cargo test ${{ matrix.feature-flags }}
+        run: cargo test ${{ matrix.feature-flags }}
+
+      - name: cargo clippy ${{ matrix.feature-flags }}
+        run: cargo clippy ${{ matrix.feature-flags }} -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Feature flags matrix — cross-platform features (metrics, miri-safe, etc.)
+  # ---------------------------------------------------------------------------
+  features-cross:
+    name: features-cross (${{ matrix.os }}, ${{ matrix.feature-flags }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        feature-flags:
+          - "--features metrics"
+          - "--features miri-safe"
+          - "--features miri-safe,metrics"
+          - "--all-features"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: features-cross-${{ matrix.os }}-${{ matrix.feature-flags }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            features-cross-cargo-
             ${{ runner.os }}-cargo-
 
       - name: cargo build ${{ matrix.feature-flags }}
@@ -203,11 +243,15 @@ jobs:
         run: cargo miri test --features "miri-safe,metrics"
 
   # ---------------------------------------------------------------------------
-  # IPv6 tests — requires IPv6 loopback enabled on the runner
+  # IPv6 tests — cross-platform, gracefully skips if IPv6 unavailable
   # ---------------------------------------------------------------------------
   ipv6:
-    name: IPv6
-    runs-on: ubuntu-latest
+    name: IPv6 (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -224,24 +268,28 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ipv6-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ipv6-${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ipv6-cargo-
             ${{ runner.os }}-cargo-
 
-      - name: Enable IPv6 on runner
+      - name: Enable IPv6 on Linux runner
+        if: runner.os == 'Linux'
         run: sudo sysctl -w net.ipv6.conf.lo.disable_ipv6=0 || true
 
       - name: cargo test (IPv6)
         run: cargo test --test ipv6
 
   # ---------------------------------------------------------------------------
-  # Stress tests — only on manual trigger (workflow_dispatch) or
-  # weekly schedule (Sunday 03:00 UTC) on main branch
+  # Stress tests — cross-platform, only on manual trigger or weekly schedule
   # ---------------------------------------------------------------------------
   stress:
-    name: Stress tests
-    runs-on: ubuntu-latest
+    name: Stress (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v4
@@ -259,7 +307,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: stress-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: stress-${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             stress-cargo-
             ${{ runner.os }}-cargo-
