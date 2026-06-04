@@ -64,16 +64,24 @@ mod linux {
         );
 
         let mut rb = RecvBatch::<32>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
+        let mut received: Vec<Vec<u8>> = Vec::new();
+        while received.len() < 32 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                received.push(rb.data(i).to_vec());
+            }
+            rb.clear();
+        }
         assert_eq!(
-            n, 32,
+            received.len(),
+            32,
             "recv_batch should receive all 32 packets on Linux backend"
         );
 
-        for i in 0..32 {
+        for (i, data) in received.iter().enumerate() {
             let expected = format!("linux-{i}");
             assert_eq!(
-                rb.data(i),
+                data.as_slice(),
                 expected.as_bytes(),
                 "linux packet {i} data should match"
             );
@@ -147,17 +155,24 @@ mod linux {
         assert_eq!(n, 64, "send_batch should send all 64 packets via sendmmsg");
 
         let mut rb = RecvBatch::<64>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
+        let mut received_payloads: Vec<Vec<u8>> = Vec::new();
+        while received_payloads.len() < 64 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                received_payloads.push(rb.data(i).to_vec());
+            }
+            rb.clear();
+        }
         assert_eq!(
-            n, 64,
+            received_payloads.len(),
+            64,
             "recv_batch should receive all 64 packets via recvmmsg"
         );
 
         // Check that every sent payload was received (UDP may reorder)
-        let received_payloads: Vec<&[u8]> = rb.iter().map(|(d, _)| d).collect();
         for expected in &expected_payloads {
             assert!(
-                received_payloads.iter().any(|r| *r == expected.as_slice()),
+                received_payloads.iter().any(|r| r == expected.as_slice()),
                 "large batch should contain payload {expected:?}",
             );
         }
@@ -189,27 +204,37 @@ mod linux {
         let n = send.send_batch(&mut sb).await?;
         assert_eq!(n, 3, "send_batch via connected path should send all 3");
 
-        // Receive all 4 packets
+        // Receive all 4 packets (may arrive across multiple recv_batch calls)
+        let mut items: Vec<(Vec<u8>, SocketAddr)> = Vec::new();
         let mut rb = RecvBatch::<4>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
-        assert_eq!(n, 4, "should receive all 4 packets on connected path");
+        while items.len() < 4 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                items.push((rb.data(i).to_vec(), rb.addr(i)));
+            }
+            rb.clear();
+        }
+        assert_eq!(
+            items.len(),
+            4,
+            "should receive all 4 packets on connected path"
+        );
 
         // Verify data and source address
-        let items: Vec<(&[u8], SocketAddr)> = rb.iter().collect();
         assert!(
-            items.iter().any(|(d, _)| *d == b"connected-1"),
+            items.iter().any(|(d, _)| d.as_slice() == b"connected-1"),
             "should contain connected-1"
         );
         assert!(
-            items.iter().any(|(d, _)| *d == b"batch-a"),
+            items.iter().any(|(d, _)| d.as_slice() == b"batch-a"),
             "should contain batch-a"
         );
         assert!(
-            items.iter().any(|(d, _)| *d == b"batch-b"),
+            items.iter().any(|(d, _)| d.as_slice() == b"batch-b"),
             "should contain batch-b"
         );
         assert!(
-            items.iter().any(|(d, _)| *d == b"batch-c"),
+            items.iter().any(|(d, _)| d.as_slice() == b"batch-c"),
             "should contain batch-c"
         );
 

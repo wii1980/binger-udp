@@ -76,39 +76,42 @@ mod timestamping_tests {
         let n = send.send_batch(&mut sb).await?;
         assert_eq!(n, 4, "should send 4 packets for timestamp test");
 
-        // Receive and verify timestamps.
+        // Receive and verify timestamps (may arrive across multiple recv_batch calls).
         let mut rb = RecvBatch::<4>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
-        assert_eq!(n, 4, "should receive 4 packets with timestamps");
+        let mut total = 0usize;
+        while total < 4 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                let ts = rb.timestamp(i);
+                assert!(
+                    ts.is_some(),
+                    "packet {} should have a timestamp when timestamping is enabled",
+                    total + i
+                );
 
-        for i in 0..n {
-            let ts = rb.timestamp(i);
-            assert!(
-                ts.is_some(),
-                "packet {i} should have a timestamp when timestamping is enabled"
-            );
+                let ts = ts.expect("timestamp should be present");
+                assert!(
+                    ts.tv_sec > 0 || ts.tv_nsec > 0,
+                    "timestamp should be non-zero (tv_sec={}, tv_nsec={})",
+                    ts.tv_sec,
+                    ts.tv_nsec
+                );
 
-            let ts = ts.expect("timestamp should be present");
-            assert!(
-                ts.tv_sec > 0 || ts.tv_nsec > 0,
-                "timestamp should be non-zero (tv_sec={}, tv_nsec={})",
-                ts.tv_sec,
-                ts.tv_nsec
-            );
-
-            // as_duration() should produce a sensible Duration.
-            // tv_sec is seconds since Unix epoch (~1.7B in 2024).
-            let dur = ts.as_duration();
-            assert!(
-                dur.as_secs() > 0 || dur.subsec_nanos() > 0,
-                "as_duration() should be non-zero"
-            );
-            assert!(
-                dur.as_secs() < 2_500_000_000,
-                "as_duration() should be a reasonable Unix timestamp, got {}",
-                dur.as_secs()
-            );
+                let dur = ts.as_duration();
+                assert!(
+                    dur.as_secs() > 0 || dur.subsec_nanos() > 0,
+                    "as_duration() should be non-zero"
+                );
+                assert!(
+                    dur.as_secs() < 2_500_000_000,
+                    "as_duration() should be a reasonable Unix timestamp, got {}",
+                    dur.as_secs()
+                );
+            }
+            total += n;
+            rb.clear();
         }
+        assert_eq!(total, 4, "should receive 4 packets with timestamps");
 
         Ok(())
     }

@@ -65,16 +65,24 @@ mod macos {
         );
 
         let mut rb = RecvBatch::<16>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
+        let mut received = Vec::new();
+        while received.len() < 16 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                received.push(rb.data(i).to_vec());
+            }
+            rb.clear();
+        }
         assert_eq!(
-            n, 16,
+            received.len(),
+            16,
             "recv_batch should receive all 16 packets on macOS backend"
         );
 
-        for i in 0..16 {
+        for (i, data) in received.iter().enumerate() {
             let expected = format!("macos-{i}");
             assert_eq!(
-                rb.data(i),
+                data.as_slice(),
                 expected.as_bytes(),
                 "macos packet {i} data should match"
             );
@@ -158,7 +166,11 @@ mod macos {
             }
             rb.clear();
         }
-        assert_eq!(items.len(), 3, "macOS should receive all 3 connected packets");
+        assert_eq!(
+            items.len(),
+            3,
+            "macOS should receive all 3 connected packets"
+        );
         assert!(
             items.iter().any(|(d, _)| *d == b"conn-single"),
             "macOS connected: should contain conn-single"

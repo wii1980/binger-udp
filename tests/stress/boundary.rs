@@ -226,7 +226,11 @@ async fn test_mixed_payload_sizes_batch() -> TestResult {
         }
         rb.clear();
     }
-    assert_eq!(all_data.len(), 5, "should receive 5 packets with mixed sizes");
+    assert_eq!(
+        all_data.len(),
+        5,
+        "should receive 5 packets with mixed sizes"
+    );
 
     let sizes: Vec<usize> = all_data.iter().map(|d| d.len()).collect();
     assert!(sizes.contains(&0), "batch should contain 0-byte payload");

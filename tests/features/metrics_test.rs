@@ -85,8 +85,13 @@ mod metrics_tests {
 
         // Receive them on the metrics-enabled socket.
         let mut rb = RecvBatch::<8>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
-        assert_eq!(n, 8, "should receive all 8 packets");
+        let mut total_received = 0usize;
+        while total_received < 8 {
+            let n = recv.recv_batch(&mut rb).await?;
+            total_received += n;
+            rb.clear();
+        }
+        assert_eq!(total_received, 8, "should receive all 8 packets");
 
         let m = recv
             .metrics()

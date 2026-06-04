@@ -68,16 +68,24 @@ mod windows {
         );
 
         let mut rb = RecvBatch::<16>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
+        let mut received: Vec<Vec<u8>> = Vec::new();
+        while received.len() < 16 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                received.push(rb.data(i).to_vec());
+            }
+            rb.clear();
+        }
         assert_eq!(
-            n, 16,
+            received.len(),
+            16,
             "recv_batch should receive all 16 packets on Windows backend"
         );
 
-        for i in 0..16 {
+        for (i, data) in received.iter().enumerate() {
             let expected = format!("win-{i}");
             assert_eq!(
-                rb.data(i),
+                data.as_slice(),
                 expected.as_bytes(),
                 "windows packet {i} data should match"
             );
@@ -154,12 +162,21 @@ mod windows {
             "Windows try_send_batch via connected path should send 2"
         );
 
-        // Receive all 3 packets
+        // Receive all 3 packets (may arrive across multiple recv_batch calls)
+        let mut items: Vec<(Vec<u8>, SocketAddr)> = Vec::new();
         let mut rb = RecvBatch::<3>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
-        assert_eq!(n, 3, "Windows should receive all 3 connected packets");
-
-        let items: Vec<(&[u8], SocketAddr)> = rb.iter().collect();
+        while items.len() < 3 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                items.push((rb.data(i).to_vec(), rb.addr(i)));
+            }
+            rb.clear();
+        }
+        assert_eq!(
+            items.len(),
+            3,
+            "Windows should receive all 3 connected packets"
+        );
         assert!(
             items.iter().any(|(d, _)| *d == b"w-conn-single"),
             "Windows connected: should contain w-conn-single"

@@ -76,13 +76,24 @@ mod ipv6_tests {
         assert_eq!(n, 16, "send_batch should send all 16 IPv6 packets");
 
         let mut rb = RecvBatch::<16>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
-        assert_eq!(n, 16, "recv_batch should receive all 16 IPv6 packets");
+        let mut received: Vec<Vec<u8>> = Vec::new();
+        while received.len() < 16 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                received.push(rb.data(i).to_vec());
+            }
+            rb.clear();
+        }
+        assert_eq!(
+            received.len(),
+            16,
+            "recv_batch should receive all 16 IPv6 packets"
+        );
 
-        for i in 0..16 {
+        for (i, data) in received.iter().enumerate() {
             let expected = format!("ipv6-pkt-{i}");
             assert_eq!(
-                rb.data(i),
+                data.as_slice(),
                 expected.as_bytes(),
                 "IPv6 packet {i} data should match"
             );
@@ -182,12 +193,21 @@ mod ipv6_tests {
         let n = send.send_batch(&mut sb).await?;
         assert_eq!(n, 3, "IPv6 connected batch should send 3 packets");
 
-        // Receive all 4 packets.
+        // Receive all 4 packets (may arrive across multiple recv_batch calls).
+        let mut items: Vec<(Vec<u8>, SocketAddr)> = Vec::new();
         let mut rb = RecvBatch::<4>::new(2048);
-        let n = recv.recv_batch(&mut rb).await?;
-        assert_eq!(n, 4, "should receive all 4 IPv6 connected-mode packets");
-
-        let items: Vec<(&[u8], SocketAddr)> = rb.iter().collect();
+        while items.len() < 4 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                items.push((rb.data(i).to_vec(), rb.addr(i)));
+            }
+            rb.clear();
+        }
+        assert_eq!(
+            items.len(),
+            4,
+            "should receive all 4 IPv6 connected-mode packets"
+        );
         assert!(
             items.iter().any(|(d, _)| *d == b"v6-connected-1"),
             "should contain v6-connected-1"
