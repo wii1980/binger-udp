@@ -13,7 +13,9 @@
 mod gso_tests {
     use std::net::UdpSocket;
 
-    use binger_udp::{platform_capabilities, BingerUdp, Config, RecvBatch};
+    #[cfg(not(feature = "miri-safe"))]
+    use binger_udp::RecvBatch;
+    use binger_udp::{platform_capabilities, BingerUdp, Config};
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -104,7 +106,8 @@ mod gso_tests {
             }
         };
         assert_eq!(
-            bytes_sent, data.len(),
+            bytes_sent,
+            data.len(),
             "try_send_gso should return total data length"
         );
 
@@ -112,14 +115,12 @@ mod gso_tests {
         // as a separate UDP datagram.
         let mut rb = RecvBatch::<64>::new(2048);
         let n = recv.recv_batch(&mut rb).await?;
-        assert!(
-            n > 0,
-            "should receive at least one segment from GSO send"
-        );
+        assert!(n > 0, "should receive at least one segment from GSO send");
 
         let total_received: usize = rb.iter().map(|(d, _)| d.len()).sum();
         assert_eq!(
-            total_received, data.len(),
+            total_received,
+            data.len(),
             "total received bytes should match GSO-sent data"
         );
 
