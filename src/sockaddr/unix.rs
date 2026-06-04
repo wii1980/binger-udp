@@ -240,8 +240,7 @@ pub(crate) fn raw_getsockopt(
     }
 }
 
-#[cfg(test)]
-#[cfg(unix)]
+#[cfg(all(test, unix, not(miri)))]
 mod tests {
     use super::*;
     use std::net::*;
