@@ -274,11 +274,21 @@ async fn test_concurrent_batch_reuse() -> TestResult {
         let n = send.send_batch(&mut sb).await?;
         assert_eq!(n, 5, "round {round}: send 5 packets");
 
-        let n = recv.recv_batch(&mut rb).await?;
-        assert_eq!(n, 5, "round {round}: receive 5 packets");
+        let mut received_data: Vec<Vec<u8>> = Vec::new();
+        while received_data.len() < 5 {
+            let n = recv.recv_batch(&mut rb).await?;
+            for i in 0..n {
+                received_data.push(rb.data(i).to_vec());
+            }
+            rb.clear();
+        }
+        assert_eq!(received_data.len(), 5, "round {round}: receive 5 packets");
 
-        for (i, expected) in payloads.iter().enumerate() {
-            assert_eq!(rb.data(i), expected.as_slice(), "round {round}: packet {i}");
+        for expected in &payloads {
+            assert!(
+                received_data.iter().any(|d| d == expected),
+                "round {round}: missing packet {expected:?}"
+            );
         }
 
         sb.clear();

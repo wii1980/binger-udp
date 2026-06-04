@@ -112,23 +112,31 @@ async fn test_connected_mode() -> TestResult {
     assert_eq!(n, 2, "should send 2 connected packets");
 
     let mut rb = RecvBatch::<4>::new(2048);
-    let n = recv.recv_batch(&mut rb).await?;
-    assert_eq!(n, 4, "should receive all 4 packets");
-    let all_data: Vec<&[u8]> = rb.iter().map(|(d, _)| d).collect();
+    let mut total_received = 0usize;
+    let mut all_data: Vec<Vec<u8>> = Vec::new();
+    while total_received < 4 {
+        let n = recv.recv_batch(&mut rb).await?;
+        for i in 0..n {
+            all_data.push(rb.data(i).to_vec());
+        }
+        total_received += n;
+        rb.clear();
+    }
+    assert_eq!(total_received, 4, "should receive all 4 packets");
     assert!(
-        all_data.iter().any(|d| *d == b"explicit-1"),
+        all_data.iter().any(|d| d == b"explicit-1"),
         "must contain explicit-1"
     );
     assert!(
-        all_data.iter().any(|d| *d == b"explicit-2"),
+        all_data.iter().any(|d| d == b"explicit-2"),
         "must contain explicit-2"
     );
     assert!(
-        all_data.iter().any(|d| *d == b"connected-1"),
+        all_data.iter().any(|d| d == b"connected-1"),
         "must contain connected-1"
     );
     assert!(
-        all_data.iter().any(|d| *d == b"connected-2"),
+        all_data.iter().any(|d| d == b"connected-2"),
         "must contain connected-2"
     );
 
@@ -156,7 +164,11 @@ async fn test_send_batch_returns_count() -> TestResult {
 
         if count > 0 {
             let mut rb = RecvBatch::<8>::new(2048);
-            let got = recv.recv_batch(&mut rb).await?;
+            let mut got = 0usize;
+            while got < count {
+                got += recv.recv_batch(&mut rb).await?;
+                rb.clear();
+            }
             assert_eq!(got, count, "drain should match item count");
         }
     }

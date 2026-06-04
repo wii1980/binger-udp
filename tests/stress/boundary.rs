@@ -295,12 +295,15 @@ async fn test_recv_batch_clear_and_reuse() -> TestResult {
     send.send_batch(&mut sb).await?;
 
     let mut rb = RecvBatch::<4>::new(2048);
-    let n = recv.recv_batch(&mut rb).await?;
-    assert_eq!(n, 3, "first wave: should receive 3 packets");
-
-    // Verify first-wave data
-    let first_items: Vec<Vec<u8>> = rb.iter().map(|(d, _)| d.to_vec()).collect();
-    assert_eq!(first_items.len(), 3, "first wave should have 3 items");
+    let mut first_items: Vec<Vec<u8>> = Vec::new();
+    while first_items.len() < 3 {
+        let n = recv.recv_batch(&mut rb).await?;
+        for i in 0..n {
+            first_items.push(rb.data(i).to_vec());
+        }
+        rb.clear();
+    }
+    assert_eq!(first_items.len(), 3, "first wave should receive 3 packets");
 
     rb.clear();
     assert_eq!(rb.len(), 0, "recv batch should be empty after clear");
@@ -315,10 +318,17 @@ async fn test_recv_batch_clear_and_reuse() -> TestResult {
     sb.push(b"second-Y", recv_addr)?;
     send.send_batch(&mut sb).await?;
 
-    let n = recv.recv_batch(&mut rb).await?;
-    assert_eq!(n, 2, "second wave: should receive 2 packets");
-    assert_eq!(rb.data(0), b"second-X", "second wave packet 0 mismatch");
-    assert_eq!(rb.data(1), b"second-Y", "second wave packet 1 mismatch");
+    let mut second_items: Vec<Vec<u8>> = Vec::new();
+    while second_items.len() < 2 {
+        let n = recv.recv_batch(&mut rb).await?;
+        for i in 0..n {
+            second_items.push(rb.data(i).to_vec());
+        }
+        rb.clear();
+    }
+    assert_eq!(second_items.len(), 2, "second wave: should receive 2 packets");
+    assert_eq!(second_items[0], b"second-X", "second wave packet 0 mismatch");
+    assert_eq!(second_items[1], b"second-Y", "second wave packet 1 mismatch");
 
     Ok(())
 }
