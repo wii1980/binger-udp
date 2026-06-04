@@ -232,7 +232,7 @@ async fn test_mixed_payload_sizes_batch() -> TestResult {
         "should receive 5 packets with mixed sizes"
     );
 
-    let sizes: Vec<usize> = all_data.iter().map(|d| d.len()).collect();
+    let sizes: Vec<usize> = all_data.iter().map(std::vec::Vec::len).collect();
     assert!(sizes.contains(&0), "batch should contain 0-byte payload");
     assert!(sizes.contains(&1), "batch should contain 1-byte payload");
     assert!(

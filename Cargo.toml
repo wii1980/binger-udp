@@ -5,9 +5,20 @@ edition = "2021"
 rust-version = "1.75"
 description = "Cross-platform, batch-native UDP I/O with platform-optimal syscalls (sendmmsg/recvmmsg on Linux, GSO/GRO, and more)"
 license = "MIT"
+homepage = "https://github.com/wii1980/binger-udp"
 repository = "https://github.com/wii1980/binger-udp"
+documentation = "https://docs.rs/binger-udp"
 keywords = ["udp", "batch", "sendmmsg", "recvmmsg", "networking"]
 categories = ["network-programming", "asynchronous"]
+exclude = [
+    "docs/",
+    "examples/",
+    "tests/",
+    ".github/",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "README_CN.md",
+]
 
 [lints.rust]
 unsafe_code = "allow"
