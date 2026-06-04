@@ -10,7 +10,7 @@ pub(crate) fn encode_sockaddr(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORA
     match addr {
         SocketAddr::V4(v4) => {
             let sin = WS::SOCKADDR_IN {
-                sin_family: WS::AF_INET as u16,
+                sin_family: WS::AF_INET,
                 sin_port: v4.port().to_be(),
                 sin_addr: WS::IN_ADDR {
                     S_un: WS::IN_ADDR_0 {
@@ -29,7 +29,7 @@ pub(crate) fn encode_sockaddr(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORA
             // SAFETY: IN6_ADDR_0 is a union; we only initialise the Byte field.
             // The Word field remains uninitialised, which is fine for a union.
             let sin6 = WS::SOCKADDR_IN6 {
-                sin6_family: WS::AF_INET6 as u16,
+                sin6_family: WS::AF_INET6,
                 sin6_port: v6.port().to_be(),
                 sin6_flowinfo: v6.flowinfo(),
                 sin6_addr: WS::IN6_ADDR {
@@ -88,58 +88,10 @@ pub(crate) fn decode_sockaddr(storage: &WS::SOCKADDR_STORAGE, len: i32) -> Socke
     }
 }
 
-pub(crate) fn raw_sendto(fd: Fd, data: &[u8], addr: SocketAddr) -> io::Result<usize> {
-    // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
+pub(crate) fn is_connected(fd: Fd) -> bool {
     let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
-    let addr_len = encode_sockaddr(addr, &mut storage);
-    // SAFETY: sendto with valid fd, data pointer, and sockaddr
-    let ret = unsafe {
-        WS::sendto(
-            fd,
-            data.as_ptr() as *const u8,
-            data.len() as i32,
-            0,
-            &storage as *const _ as *const WS::SOCKADDR,
-            addr_len,
-        )
-    };
-    if ret != WS::SOCKET_ERROR {
-        Ok(ret as usize)
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-pub(crate) fn raw_send(fd: Fd, data: &[u8]) -> io::Result<usize> {
-    // SAFETY: send with valid fd and data pointer, for connected sockets
-    let ret = unsafe { WS::send(fd, data.as_ptr() as *const u8, data.len() as i32, 0) };
-    if ret != WS::SOCKET_ERROR {
-        Ok(ret as usize)
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-pub(crate) fn raw_recvfrom(fd: Fd, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-    // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
-    let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
-    let mut addr_len = mem::size_of::<WS::SOCKADDR_STORAGE>() as i32;
-    // SAFETY: recvfrom with valid fd, buf pointer, and sockaddr output
-    let ret = unsafe {
-        WS::recvfrom(
-            fd,
-            buf.as_mut_ptr() as *mut u8,
-            buf.len() as i32,
-            0,
-            &mut storage as *mut _ as *mut WS::SOCKADDR,
-            &mut addr_len,
-        )
-    };
-    if ret != WS::SOCKET_ERROR {
-        Ok((ret as usize, decode_sockaddr(&storage, addr_len)))
-    } else {
-        Err(io::Error::last_os_error())
-    }
+    let mut len = mem::size_of::<WS::SOCKADDR_STORAGE>() as i32;
+    unsafe { WS::getpeername(fd, &mut storage as *mut _ as *mut WS::SOCKADDR, &mut len) == 0 }
 }
 
 pub(crate) fn raw_getsockname(fd: Fd) -> io::Result<SocketAddr> {
@@ -181,6 +133,66 @@ pub(crate) fn raw_setsockopt(fd: Fd, level: i32, optname: i32, val: i32) -> io::
     };
     if ret == 0 {
         Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) fn raw_sendto(fd: Fd, data: &[u8], addr: SocketAddr) -> io::Result<usize> {
+    // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
+    let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
+    let addr_len = encode_sockaddr(addr, &mut storage);
+    // SAFETY: sendto with valid fd, data pointer, and sockaddr
+    // Returns number of bytes sent; SOCKET_ERROR (-1) on failure.
+    let ret = unsafe {
+        WS::sendto(
+            fd,
+            data.as_ptr().cast(),
+            data.len() as i32,
+            0,
+            &storage as *const _ as *const WS::SOCKADDR,
+            addr_len,
+        )
+    };
+    if ret >= 0 {
+        Ok(ret as usize)
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) fn raw_send(fd: Fd, data: &[u8]) -> io::Result<usize> {
+    // SAFETY: send with valid fd and data pointer, for connected sockets
+    // Returns number of bytes sent; SOCKET_ERROR (-1) on failure.
+    let ret = unsafe { WS::send(fd, data.as_ptr().cast(), data.len() as i32, 0) };
+    if ret >= 0 {
+        Ok(ret as usize)
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) fn raw_recvfrom(fd: Fd, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+    // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
+    let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
+    let mut addr_len = mem::size_of::<WS::SOCKADDR_STORAGE>() as i32;
+    // SAFETY: recvfrom with valid fd, buf pointer, and sockaddr output
+    // Returns number of bytes received; SOCKET_ERROR (-1) on failure.
+    let ret = unsafe {
+        WS::recvfrom(
+            fd,
+            buf.as_mut_ptr().cast(),
+            buf.len() as i32,
+            0,
+            &mut storage as *mut _ as *mut WS::SOCKADDR,
+            &mut addr_len,
+        )
+    };
+    if ret >= 0 {
+        Ok((ret as usize, decode_sockaddr(&storage, addr_len)))
     } else {
         Err(io::Error::last_os_error())
     }

@@ -21,9 +21,7 @@ async fn main() -> std::io::Result<()> {
     println!("  max batch size: {}", caps.max_batch_size);
 
     // Build a custom config
-    let config = Config::new()
-        .with_batch_size(16)
-        .with_send_buf_size(65536);
+    let config = Config::new().with_batch_size(16).with_send_buf_size(65536);
 
     println!("\nConfig: batch_size=16, send_buf_size=65536");
 

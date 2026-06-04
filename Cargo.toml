@@ -24,7 +24,6 @@ cast_ptr_alignment = "allow"
 ptr_as_ptr = "allow"
 ptr_cast_constness = "allow"
 borrow_as_ptr = "allow"
-ref_as_ptr = "allow"
 
 [features]
 default = ["tokio"]

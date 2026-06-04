@@ -17,6 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// let snapshot = m.snapshot();
 /// println!("packets sent: {}", snapshot.packets_sent);
 /// ```
+#[allow(clippy::module_name_repetitions)]
 #[derive(Default)]
 pub struct BingerMetrics {
     packets_sent: AtomicU64,
@@ -192,6 +193,7 @@ impl BingerMetrics {
 }
 
 /// Point-in-time snapshot of [`BingerMetrics`] counters.
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone, Copy)]
 pub struct MetricsSnapshot {
     /// Total UDP datagrams sent.

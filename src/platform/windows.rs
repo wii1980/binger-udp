@@ -1,9 +1,9 @@
-//! Windows platform backend — batch UDP I/O via WSASendMsg / WSARecvMsg.
+//! Windows platform backend — batch UDP I/O via `WSASendMsg` / `WSARecvMsg`.
 //!
 //! Windows has no native batch UDP syscall; we loop individual
-//! WSASendMsg / WSARecvMsg calls.  WSASendMsg is exported directly
-//! from ws2_32.dll; WSARecvMsg is an extension function that must be
-//! loaded at runtime via WSAIoctl + SIO_GET_EXTENSION_FUNCTION_POINTER.
+//! `WSASendMsg` / `WSARecvMsg` calls.  `WSASendMsg` is exported directly
+//! from `ws2_32.dll`; `WSARecvMsg` is an extension function that must be
+//! loaded at runtime via `WSAIoctl` + `SIO_GET_EXTENSION_FUNCTION_POINTER`.
 
 use std::io;
 use std::mem;
@@ -13,6 +13,7 @@ use std::sync::OnceLock;
 use windows_sys::Win32::Networking::WinSock as WS;
 
 use crate::batch::{RecvBatchRaw, SendBatchRaw};
+use crate::sockaddr;
 use crate::sys::Fd;
 
 // ==================================================================
@@ -23,7 +24,7 @@ fn encode_addr_into(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORAGE, namele
     match addr {
         SocketAddr::V4(v4) => {
             let sin = WS::SOCKADDR_IN {
-                sin_family: WS::AF_INET as u16,
+                sin_family: WS::AF_INET,
                 sin_port: v4.port().to_be(),
                 sin_addr: WS::IN_ADDR {
                     S_un: WS::IN_ADDR_0 {
@@ -39,7 +40,7 @@ fn encode_addr_into(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORAGE, namele
         }
         SocketAddr::V6(v6) => {
             let sin6 = WS::SOCKADDR_IN6 {
-                sin6_family: WS::AF_INET6 as u16,
+                sin6_family: WS::AF_INET6,
                 sin6_port: v6.port().to_be(),
                 sin6_flowinfo: v6.flowinfo(),
                 sin6_addr: WS::IN6_ADDR {
@@ -101,7 +102,7 @@ static WSARECVMSG_PTR: OnceLock<Option<WsaRecvMsgFn>> = OnceLock::new();
 
 fn get_wsa_recvmsg() -> Option<WsaRecvMsgFn> {
     *WSARECVMSG_PTR.get_or_init(|| {
-        let s = unsafe { WS::socket(WS::AF_INET as i32, WS::SOCK_DGRAM as i32, 0) };
+        let s = unsafe { WS::socket(WS::AF_INET as i32, WS::SOCK_DGRAM, 0) };
         if s == WS::INVALID_SOCKET {
             return None;
         }
@@ -146,6 +147,8 @@ pub(crate) fn try_send_batch(fd: Fd, batch: &SendBatchRaw) -> io::Result<usize> 
         return Ok(0);
     }
 
+    let connected = sockaddr::is_connected(fd);
+
     let mut sent = 0usize;
     for i in 0..len {
         let (data, addr) = batch.entry(i);
@@ -158,12 +161,15 @@ pub(crate) fn try_send_batch(fd: Fd, batch: &SendBatchRaw) -> io::Result<usize> 
         let mut addr_storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
         let mut namelen = 0i32;
 
-        if let Some(target) = addr {
-            encode_addr_into(target, &mut addr_storage, &mut namelen);
+        if !connected {
+            if let Some(target) = addr {
+                encode_addr_into(target, &mut addr_storage, &mut namelen);
+            }
         }
 
+        let use_addr = !connected && addr.is_some();
         let wsa_msg = WS::WSAMSG {
-            name: if addr.is_some() {
+            name: if use_addr {
                 &mut addr_storage as *mut _ as *mut _
             } else {
                 std::ptr::null_mut()
@@ -237,7 +243,7 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
 
         let mut bytes_recv: u32 = 0;
 
-        let result = if let Some(wsa_recvmsg) = get_wsa_recvmsg() {
+        let (result, addr_len) = if let Some(wsa_recvmsg) = get_wsa_recvmsg() {
             let rc = unsafe {
                 wsa_recvmsg(
                     fd,
@@ -248,16 +254,16 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                 )
             };
             if rc == WS::SOCKET_ERROR {
-                Err(io::Error::last_os_error())
+                (Err(io::Error::last_os_error()), 0)
             } else {
-                Ok(bytes_recv as usize)
+                (Ok(bytes_recv as usize), wsa_msg.namelen)
             }
         } else {
             let mut addr_len = mem::size_of::<WS::SOCKADDR_STORAGE>() as i32;
             let rc = unsafe {
                 WS::recvfrom(
                     fd,
-                    buf_ptr as *mut u8,
+                    buf_ptr,
                     buf_len as i32,
                     0,
                     &mut source as *mut _ as *mut _,
@@ -265,15 +271,15 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                 )
             };
             if rc == WS::SOCKET_ERROR {
-                Err(io::Error::last_os_error())
+                (Err(io::Error::last_os_error()), 0)
             } else {
-                Ok(rc as usize)
+                (Ok(rc as usize), addr_len)
             }
         };
 
         match result {
             Ok(n) => {
-                let decoded = decode_sockaddr(&source, 0);
+                let decoded = decode_sockaddr(&source, addr_len);
                 // SAFETY: i < capacity, n <= buf_len
                 unsafe { batch.set_recv_len(i, n) };
                 let (_, addr_out) = batch.buffer_mut(i);

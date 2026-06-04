@@ -6,13 +6,11 @@ pub(crate) type Fd = usize;
 
 // Socket-level / protocol constants, cast to i32 for compatibility
 // with the Unix-side code in socket.rs that passes them to setsockopt.
-pub(crate) const SOL_SOCKET: i32 = windows_sys::Win32::Networking::WinSock::SOL_SOCKET as i32;
-pub(crate) const SO_SNDBUF: i32 = windows_sys::Win32::Networking::WinSock::SO_SNDBUF as i32;
-pub(crate) const SO_RCVBUF: i32 = windows_sys::Win32::Networking::WinSock::SO_RCVBUF as i32;
-pub(crate) const IPPROTO_IP: i32 = windows_sys::Win32::Networking::WinSock::IPPROTO_IP as i32;
-pub(crate) const IP_TTL: i32 = windows_sys::Win32::Networking::WinSock::IP_TTL as i32;
-pub(crate) const AF_INET: i32 = windows_sys::Win32::Networking::WinSock::AF_INET as i32;
-pub(crate) const AF_INET6: i32 = windows_sys::Win32::Networking::WinSock::AF_INET6 as i32;
+pub(crate) const SOL_SOCKET: i32 = windows_sys::Win32::Networking::WinSock::SOL_SOCKET;
+pub(crate) const SO_SNDBUF: i32 = windows_sys::Win32::Networking::WinSock::SO_SNDBUF;
+pub(crate) const SO_RCVBUF: i32 = windows_sys::Win32::Networking::WinSock::SO_RCVBUF;
+pub(crate) const IPPROTO_IP: i32 = windows_sys::Win32::Networking::WinSock::IPPROTO_IP;
+pub(crate) const IP_TTL: i32 = windows_sys::Win32::Networking::WinSock::IP_TTL;
 
 /// Close a socket handle.
 ///

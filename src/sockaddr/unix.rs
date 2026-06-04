@@ -143,6 +143,13 @@ pub(crate) fn raw_recvfrom(fd: Fd, buf: &mut [u8]) -> std::io::Result<(usize, So
     }
 }
 
+#[allow(dead_code)]
+pub(crate) fn is_connected(fd: Fd) -> bool {
+    let mut storage: libc::sockaddr_storage = unsafe { mem::zeroed() };
+    let mut len = mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
+    unsafe { libc::getpeername(fd, &mut storage as *mut _ as *mut _, &mut len) == 0 }
+}
+
 pub(crate) fn raw_getsockname(fd: Fd) -> std::io::Result<SocketAddr> {
     // SAFETY: zeroed() produces valid initialization for sockaddr_storage
     let mut storage: libc::sockaddr_storage = unsafe { mem::zeroed() };
@@ -240,8 +247,7 @@ pub(crate) fn raw_getsockopt(
     }
 }
 
-#[cfg(test)]
-#[cfg(unix)]
+#[cfg(all(test, unix, not(miri)))]
 mod tests {
     use super::*;
     use std::net::*;

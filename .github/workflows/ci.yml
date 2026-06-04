@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, develop/*]
   pull_request:
     branches: [main, master]
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -110,3 +113,211 @@ jobs:
 
       - name: cargo fmt --check
         run: cargo fmt -- --check
+
+  # ---------------------------------------------------------------------------
+  # Feature flags matrix — Linux-only features (gso, gro, timestamping, etc.)
+  # ---------------------------------------------------------------------------
+  features-linux:
+    name: features-linux (${{ matrix.feature-flags }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        feature-flags:
+          - "--features gso"
+          - "--features gro"
+          - "--features gso,gro"
+          - "--features timestamping"
+          - "--features pktinfo"
+          - "--features pacing"
+          - "--features busy-poll"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: features-linux-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            features-linux-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: cargo build ${{ matrix.feature-flags }}
+        run: cargo build ${{ matrix.feature-flags }}
+
+      - name: cargo test ${{ matrix.feature-flags }}
+        run: cargo test ${{ matrix.feature-flags }}
+
+      - name: cargo clippy ${{ matrix.feature-flags }}
+        run: cargo clippy ${{ matrix.feature-flags }} -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Feature flags matrix — cross-platform features (metrics, miri-safe, etc.)
+  # ---------------------------------------------------------------------------
+  features-cross:
+    name: features-cross (${{ matrix.os }}, ${{ matrix.feature-flags }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        feature-flags:
+          - "--features metrics"
+          - "--features miri-safe"
+          - "--features miri-safe,metrics"
+          - "--all-features"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: features-cross-${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            features-cross-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: cargo build ${{ matrix.feature-flags }}
+        run: cargo build ${{ matrix.feature-flags }}
+
+      - name: cargo test ${{ matrix.feature-flags }}
+        run: cargo test ${{ matrix.feature-flags }}
+
+      - name: cargo clippy ${{ matrix.feature-flags }}
+        run: cargo clippy ${{ matrix.feature-flags }} -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Miri — memory safety checking with nightly Rust
+  # Tests with miri-safe and miri-safe+metrics feature combinations
+  # ---------------------------------------------------------------------------
+  miri:
+    name: Miri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly Rust with Miri
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: nightly
+          components: miri
+          cache: false
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: miri-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: miri-cargo-
+
+      - name: cargo miri setup
+        run: cargo miri setup
+
+      - name: cargo miri test (miri-safe)
+        run: cargo miri test --features miri-safe --lib
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation
+
+      - name: cargo miri test (miri-safe, metrics)
+        run: cargo miri test --features "miri-safe,metrics" --lib
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation
+
+  # ---------------------------------------------------------------------------
+  # IPv6 tests — cross-platform, gracefully skips if IPv6 unavailable
+  # ---------------------------------------------------------------------------
+  ipv6:
+    name: IPv6 (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ipv6-${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ipv6-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: Enable IPv6 on Linux runner
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w net.ipv6.conf.lo.disable_ipv6=0 || true
+
+      - name: cargo test (IPv6)
+        run: cargo test --test ipv6
+
+  # ---------------------------------------------------------------------------
+  # Stress tests — cross-platform, only on manual trigger or weekly schedule
+  # ---------------------------------------------------------------------------
+  stress:
+    name: Stress (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: stress-${{ matrix.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            stress-cargo-
+            ${{ runner.os }}-cargo-
+
+      - name: cargo test (concurrent)
+        run: cargo test --test concurrent
+
+      - name: cargo test (boundary)
+        run: cargo test --test boundary

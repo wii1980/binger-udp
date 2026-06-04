@@ -566,12 +566,17 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
 
 /// Fallback for `try_send_batch` when `sendmmsg` is not available.
 fn fallback_send(fd: Fd, batch: &SendBatchRaw) -> io::Result<usize> {
+    let len = batch.len();
+    if len == 0 {
+        return Ok(0);
+    }
+    let connected = sockaddr::is_connected(fd);
     let mut sent = 0;
-    for i in 0..batch.len() {
+    for i in 0..len {
         let (data, addr) = batch.entry(i);
-        let result = match addr {
-            Some(a) => sockaddr::raw_sendto(fd, data, a),
-            None => sockaddr::raw_send(fd, data),
+        let result = match (connected, addr) {
+            (true, _) | (_, None) => sockaddr::raw_send(fd, data),
+            (_, Some(a)) => sockaddr::raw_sendto(fd, data, a),
         };
         match result {
             Ok(_) => sent += 1,

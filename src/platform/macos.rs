@@ -6,10 +6,11 @@ use crate::sockaddr;
 use crate::sys::Fd;
 
 /// macOS private API struct — equivalent to Linux's mmsghdr but as an extended msghdr.
-/// Layout from Apple XNU socket_private.h (64 bytes on 64-bit):
-///   msg_name(8) + msg_namelen(4+4pad) + msg_iov(8) + msg_iovlen(4+4pad)
-///   + msg_control(8) + msg_controllen(4+4pad) + msg_flags(4+4pad) + msg_datalen(8)
+/// Layout from Apple XNU `socket_private.h` (64 bytes on 64-bit):
+///   `msg_name(8)` + `msg_namelen(4+4pad)` + `msg_iov(8)` + `msg_iovlen(4+4pad)`
+///   + `msg_control(8)` + `msg_controllen(4+4pad)` + `msg_flags(4+4pad)` + `msg_datalen(8)`
 #[repr(C)]
+#[allow(clippy::struct_field_names)]
 struct msghdr_x {
     msg_name: *mut libc::c_void,
     msg_namelen: libc::socklen_t,
@@ -67,15 +68,32 @@ pub(crate) fn try_send_batch(fd: Fd, batch: &SendBatchRaw) -> io::Result<usize> 
         return Ok(0);
     }
 
+    // macOS returns EISCONN when sendto/sendmsg_x is called with a destination
+    // address on a connected socket. Detect once and strip addresses when connected.
+    let connected = sockaddr::is_connected(fd);
+
+    // sendmsg_x does not reliably handle connected sockets with null msg_name
+    // (reports success but drops packets). Use raw_send loop instead.
+    if connected {
+        let mut sent = 0;
+        for i in 0..batch.len() {
+            let (data, _) = batch.entry(i);
+            match sockaddr::raw_send(fd, data) {
+                Ok(_) => sent += 1,
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
+                Err(e) => return Err(e),
+            }
+        }
+        return Ok(sent);
+    }
+
     let mut msgs: Vec<msghdr_x> = Vec::with_capacity(len);
     let mut iovecs: Vec<libc::iovec> = Vec::with_capacity(len);
     let mut addrs: Vec<libc::sockaddr_storage> = Vec::with_capacity(len);
 
     for i in 0..len {
         let (data, addr) = batch.entry(i);
-        // SAFETY: zeroed() produces valid initialization for C structs with all-zero being valid
         let mut storage: libc::sockaddr_storage = unsafe { mem::zeroed() };
-        // SAFETY: zeroed() produces valid initialization for msghdr_x
         let mut mhdr: msghdr_x = unsafe { mem::zeroed() };
 
         if let Some(target) = addr {
@@ -108,8 +126,6 @@ pub(crate) fn try_send_batch(fd: Fd, batch: &SendBatchRaw) -> io::Result<usize> 
     }
 
     if let Some(sendmsg_x) = sendmsg_x_fn() {
-        // SAFETY: sendmsg_x is called with valid fd, properly aligned msghdr_x array,
-        //         and valid count. Returns count of messages sent (not bytes).
         let sent = retry_eintr(|| unsafe { sendmsg_x(fd, msgs.as_ptr(), len as libc::c_uint, 0) })?;
         return Ok(sent as usize);
     }
