@@ -14,10 +14,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 /// Send batch with retry on `WouldBlock`, using `try_send_batch` (sync).
 /// The caller must ensure batch data outlives this call.
-fn send_retry<const N: usize>(
-    socket: &BingerUdp,
-    batch: &mut SendBatch<N>,
-) -> io::Result<usize> {
+fn send_retry<const N: usize>(socket: &BingerUdp, batch: &mut SendBatch<N>) -> io::Result<usize> {
     loop {
         match socket.try_send_batch(batch) {
             Ok(n) => return Ok(n),
@@ -30,10 +27,7 @@ fn send_retry<const N: usize>(
 }
 
 /// Recv batch with retry on `WouldBlock`, using `try_recv_batch` (sync).
-fn recv_retry<const N: usize>(
-    socket: &BingerUdp,
-    batch: &mut RecvBatch<N>,
-) -> io::Result<usize> {
+fn recv_retry<const N: usize>(socket: &BingerUdp, batch: &mut RecvBatch<N>) -> io::Result<usize> {
     loop {
         match socket.try_recv_batch(batch) {
             Ok(n) => return Ok(n),
@@ -44,8 +38,6 @@ fn recv_retry<const N: usize>(
         }
     }
 }
-
-
 
 // ---------------------------------------------------------------------------
 // 1. Multiple concurrent senders, one receiver
@@ -59,10 +51,7 @@ fn test_concurrent_senders_one_receiver() -> TestResult {
         const PER_SENDER: usize = 16;
         const TOTAL: usize = N_SENDERS * PER_SENDER;
 
-        let recv = BingerUdp::from_std(
-            UdpSocket::bind("127.0.0.1:0")?,
-            Config::default(),
-        )?;
+        let recv = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
         let recv_addr = recv.local_addr()?;
         let recv = Arc::new(recv);
 
@@ -77,10 +66,8 @@ fn test_concurrent_senders_one_receiver() -> TestResult {
             handles.push(thread::spawn(move || -> io::Result<()> {
                 let rt = tokio::runtime::Runtime::new()?;
                 rt.block_on(async {
-                    let sender = BingerUdp::from_std(
-                        UdpSocket::bind("127.0.0.1:0")?,
-                        Config::default(),
-                    )?;
+                    let sender =
+                        BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
                     bar.wait();
 
                     // Keep payloads alive until send_retry completes
@@ -291,11 +278,7 @@ async fn test_concurrent_batch_reuse() -> TestResult {
         assert_eq!(n, 5, "round {round}: receive 5 packets");
 
         for (i, expected) in payloads.iter().enumerate() {
-            assert_eq!(
-                rb.data(i),
-                expected.as_slice(),
-                "round {round}: packet {i}"
-            );
+            assert_eq!(rb.data(i), expected.as_slice(), "round {round}: packet {i}");
         }
 
         sb.clear();
@@ -334,10 +317,7 @@ fn test_multi_receiver_concurrent() -> TestResult {
         )?);
         let addr_c = recv_c.local_addr()?;
 
-        let sender = BingerUdp::from_std(
-            UdpSocket::bind("127.0.0.1:0")?,
-            Config::default(),
-        )?;
+        let sender = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
 
         let mut sb = SendBatch::<3>::new();
         sb.push(b"payload-for-A", addr_a)?;

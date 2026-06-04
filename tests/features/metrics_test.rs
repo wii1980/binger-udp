@@ -57,8 +57,7 @@ mod metrics_tests {
 
     #[tokio::test]
     async fn test_metrics_disabled() -> TestResult {
-        let sock =
-            BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
+        let sock = BingerUdp::from_std(UdpSocket::bind("127.0.0.1:0")?, Config::default())?;
 
         assert!(
             sock.metrics().is_none(),
@@ -180,8 +179,14 @@ mod metrics_tests {
             .expect("metrics should be enabled on receiver");
 
         // Confirm counters are non-zero before reset.
-        assert!(m.packets_received() > 0, "counters should be non-zero before reset");
-        assert!(m.batches_received() > 0, "batches_received should be non-zero before reset");
+        assert!(
+            m.packets_received() > 0,
+            "counters should be non-zero before reset"
+        );
+        assert!(
+            m.batches_received() > 0,
+            "batches_received should be non-zero before reset"
+        );
 
         m.reset();
 
@@ -192,11 +197,7 @@ mod metrics_tests {
             0,
             "packets_received should be 0 after reset"
         );
-        assert_eq!(
-            m.batches_sent(),
-            0,
-            "batches_sent should be 0 after reset"
-        );
+        assert_eq!(m.batches_sent(), 0, "batches_sent should be 0 after reset");
         assert_eq!(
             m.batches_received(),
             0,

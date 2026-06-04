@@ -38,10 +38,7 @@ async fn test_empty_payload() -> TestResult {
         0,
         "received empty payload should be 0 bytes"
     );
-    assert!(
-        rb.data(0).is_empty(),
-        "data(0) should be an empty slice"
-    );
+    assert!(rb.data(0).is_empty(), "data(0) should be an empty slice");
 
     Ok(())
 }
@@ -83,7 +80,10 @@ fn test_send_batch_full_returns_error() {
     let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
 
     assert!(sb.push(b"first", addr).is_ok(), "first push should succeed");
-    assert!(sb.push(b"second", addr).is_ok(), "second push should succeed");
+    assert!(
+        sb.push(b"second", addr).is_ok(),
+        "second push should succeed"
+    );
     assert_eq!(sb.len(), 2, "batch len should be 2");
 
     let err = sb.push(b"third", addr).unwrap_err();
@@ -174,10 +174,7 @@ async fn test_large_number_of_small_packets() -> TestResult {
             sb.push(&payload, recv_addr)?;
         }
         let n = send.send_batch(&mut sb).await?;
-        assert_eq!(
-            n, PER_BATCH,
-            "batch {b}: should send {PER_BATCH} packets"
-        );
+        assert_eq!(n, PER_BATCH, "batch {b}: should send {PER_BATCH} packets");
 
         // Drain until we've caught up (or at least got something)
         let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
@@ -192,10 +189,7 @@ async fn test_large_number_of_small_packets() -> TestResult {
         }
     }
 
-    assert_eq!(
-        received, TOTAL,
-        "should receive all {TOTAL} packets"
-    );
+    assert_eq!(received, TOTAL, "should receive all {TOTAL} packets");
 
     Ok(())
 }
@@ -209,11 +203,11 @@ async fn test_mixed_payload_sizes_batch() -> TestResult {
     let (send, recv, recv_addr) = make_pair()?;
 
     let payloads: [&[u8]; 5] = [
-        b"",              // 0 bytes
-        b"X",             // 1 byte
-        &[b'A'; 100],     // 100 bytes
-        &[b'B'; 500],     // 500 bytes
-        &[b'C'; 1400],    // 1400 bytes
+        b"",           // 0 bytes
+        b"X",          // 1 byte
+        &[b'A'; 100],  // 100 bytes
+        &[b'B'; 500],  // 500 bytes
+        &[b'C'; 1400], // 1400 bytes
     ];
 
     let mut sb = SendBatch::<5>::new();
@@ -230,9 +224,18 @@ async fn test_mixed_payload_sizes_batch() -> TestResult {
     let sizes: Vec<usize> = rb.iter().map(|(d, _)| d.len()).collect();
     assert!(sizes.contains(&0), "batch should contain 0-byte payload");
     assert!(sizes.contains(&1), "batch should contain 1-byte payload");
-    assert!(sizes.contains(&100), "batch should contain 100-byte payload");
-    assert!(sizes.contains(&500), "batch should contain 500-byte payload");
-    assert!(sizes.contains(&1400), "batch should contain 1400-byte payload");
+    assert!(
+        sizes.contains(&100),
+        "batch should contain 100-byte payload"
+    );
+    assert!(
+        sizes.contains(&500),
+        "batch should contain 500-byte payload"
+    );
+    assert!(
+        sizes.contains(&1400),
+        "batch should contain 1400-byte payload"
+    );
 
     Ok(())
 }

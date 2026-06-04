@@ -39,8 +39,7 @@ mod linux {
             "Linux max_batch_size should be 1024"
         );
         assert_eq!(
-            caps.backend_name,
-            "sendmmsg/recvmmsg (Linux)",
+            caps.backend_name, "sendmmsg/recvmmsg (Linux)",
             "backend_name should identify the Linux backend"
         );
     }
@@ -59,11 +58,17 @@ mod linux {
             sb.push(msg.as_bytes(), recv_addr)?;
         }
         let n = send.send_batch(&mut sb).await?;
-        assert_eq!(n, 32, "send_batch should send all 32 packets on Linux backend");
+        assert_eq!(
+            n, 32,
+            "send_batch should send all 32 packets on Linux backend"
+        );
 
         let mut rb = RecvBatch::<32>::new(2048);
         let n = recv.recv_batch(&mut rb).await?;
-        assert_eq!(n, 32, "recv_batch should receive all 32 packets on Linux backend");
+        assert_eq!(
+            n, 32,
+            "recv_batch should receive all 32 packets on Linux backend"
+        );
 
         for i in 0..32 {
             let expected = format!("linux-{i}");
@@ -139,10 +144,7 @@ mod linux {
             expected_payloads.push(payload);
         }
         let n = send.send_batch(&mut sb).await?;
-        assert_eq!(
-            n, 64,
-            "send_batch should send all 64 packets via sendmmsg"
-        );
+        assert_eq!(n, 64, "send_batch should send all 64 packets via sendmmsg");
 
         let mut rb = RecvBatch::<64>::new(2048);
         let n = recv.recv_batch(&mut rb).await?;

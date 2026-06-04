@@ -441,10 +441,7 @@ impl RecvBatchRaw {
                 dst_addr: None,
             })
             .collect();
-        Self {
-            slots,
-            len: 0,
-        }
+        Self { slots, len: 0 }
     }
 
     /// Returns the maximum number of packets this batch can hold.

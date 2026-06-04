@@ -111,11 +111,7 @@ mod ipv6_tests {
             return Err("expected V6 address".into());
         };
 
-        assert_eq!(
-            ipv6.ip(),
-            &Ipv6Addr::LOCALHOST,
-            "should be bound to ::1"
-        );
+        assert_eq!(ipv6.ip(), &Ipv6Addr::LOCALHOST, "should be bound to ::1");
         assert!(ipv6.port() > 0, "should have a non-zero port");
 
         Ok(())

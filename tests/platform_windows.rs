@@ -43,8 +43,7 @@ mod windows {
             "Windows max_batch_size should be 32"
         );
         assert_eq!(
-            caps.backend_name,
-            "WSASendMsg/WSARecvMsg (Windows)",
+            caps.backend_name, "WSASendMsg/WSARecvMsg (Windows)",
             "backend_name should identify the Windows backend"
         );
     }

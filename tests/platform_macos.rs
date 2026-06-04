@@ -38,13 +38,9 @@ mod macos {
             !caps.supports_sendmmsg,
             "sendmmsg should NOT be supported on macOS"
         );
+        assert_eq!(caps.max_batch_size, 32, "macOS max_batch_size should be 32");
         assert_eq!(
-            caps.max_batch_size, 32,
-            "macOS max_batch_size should be 32"
-        );
-        assert_eq!(
-            caps.backend_name,
-            "sendmsg_x/recvmsg_x (macOS)",
+            caps.backend_name, "sendmsg_x/recvmsg_x (macOS)",
             "backend_name should identify the macOS backend"
         );
     }
@@ -105,10 +101,7 @@ mod macos {
         sb.push(b"macos-a", addr_a)?;
         sb.push(b"macos-b", addr_b)?;
         let n = send.send_batch(&mut sb).await?;
-        assert_eq!(
-            n, 2,
-            "macOS send_batch to 2 destinations should send both"
-        );
+        assert_eq!(n, 2, "macOS send_batch to 2 destinations should send both");
 
         let mut rb_a = RecvBatch::<1>::new(2048);
         let n = recv_a.recv_batch(&mut rb_a).await?;
