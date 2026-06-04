@@ -6,10 +6,11 @@ use crate::sockaddr;
 use crate::sys::Fd;
 
 /// macOS private API struct — equivalent to Linux's mmsghdr but as an extended msghdr.
-/// Layout from Apple XNU socket_private.h (64 bytes on 64-bit):
-///   msg_name(8) + msg_namelen(4+4pad) + msg_iov(8) + msg_iovlen(4+4pad)
-///   + msg_control(8) + msg_controllen(4+4pad) + msg_flags(4+4pad) + msg_datalen(8)
+/// Layout from Apple XNU `socket_private.h` (64 bytes on 64-bit):
+///   `msg_name(8)` + `msg_namelen(4+4pad)` + `msg_iov(8)` + `msg_iovlen(4+4pad)`
+///   + `msg_control(8)` + `msg_controllen(4+4pad)` + `msg_flags(4+4pad)` + `msg_datalen(8)`
 #[repr(C)]
+#[allow(clippy::struct_field_names)]
 struct msghdr_x {
     msg_name: *mut libc::c_void,
     msg_namelen: libc::socklen_t,
