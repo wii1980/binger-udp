@@ -540,6 +540,15 @@ impl BingerUdp {
     pub async fn recv_batch(&self, batch: &mut RecvBatchRaw) -> io::Result<usize> {
         loop {
             match self.try_recv_batch(batch) {
+                Ok(0) => {
+                    if let Some(ref state) = self.adaptive_recv {
+                        if let Ok(mut s) = state.lock() {
+                            s.record_would_block();
+                            s.maybe_adjust();
+                        }
+                    }
+                    self.wait_readable().await?;
+                }
                 Ok(n) => return Ok(n),
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                     if let Some(ref state) = self.adaptive_recv {

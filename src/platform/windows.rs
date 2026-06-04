@@ -13,6 +13,7 @@ use std::sync::OnceLock;
 use windows_sys::Win32::Networking::WinSock as WS;
 
 use crate::batch::{RecvBatchRaw, SendBatchRaw};
+use crate::sockaddr;
 use crate::sys::Fd;
 
 // ==================================================================
@@ -146,6 +147,8 @@ pub(crate) fn try_send_batch(fd: Fd, batch: &SendBatchRaw) -> io::Result<usize> 
         return Ok(0);
     }
 
+    let connected = sockaddr::is_connected(fd);
+
     let mut sent = 0usize;
     for i in 0..len {
         let (data, addr) = batch.entry(i);
@@ -158,12 +161,15 @@ pub(crate) fn try_send_batch(fd: Fd, batch: &SendBatchRaw) -> io::Result<usize> 
         let mut addr_storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
         let mut namelen = 0i32;
 
-        if let Some(target) = addr {
-            encode_addr_into(target, &mut addr_storage, &mut namelen);
+        if !connected {
+            if let Some(target) = addr {
+                encode_addr_into(target, &mut addr_storage, &mut namelen);
+            }
         }
 
+        let use_addr = !connected && addr.is_some();
         let wsa_msg = WS::WSAMSG {
-            name: if addr.is_some() {
+            name: if use_addr {
                 &mut addr_storage as *mut _ as *mut _
             } else {
                 std::ptr::null_mut()

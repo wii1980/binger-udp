@@ -88,6 +88,12 @@ pub(crate) fn decode_sockaddr(storage: &WS::SOCKADDR_STORAGE, len: i32) -> Socke
     }
 }
 
+pub(crate) fn is_connected(fd: Fd) -> bool {
+    let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };
+    let mut len = mem::size_of::<WS::SOCKADDR_STORAGE>() as i32;
+    unsafe { WS::getpeername(fd, &mut storage as *mut _ as *mut WS::SOCKADDR, &mut len) == 0 }
+}
+
 pub(crate) fn raw_getsockname(fd: Fd) -> io::Result<SocketAddr> {
     // SAFETY: zeroed() produces valid initialization for SOCKADDR_STORAGE
     let mut storage: WS::SOCKADDR_STORAGE = unsafe { mem::zeroed() };

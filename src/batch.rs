@@ -18,8 +18,7 @@ use crate::error::BingerError;
 /// # Related
 ///
 /// * [`RecvBatch::timestamp`] — retrieves the timestamp for a received packet.
-/// * [`BingerUdp::enable_timestamping`](crate::socket::BingerUdp::enable_timestamping) — enables
-///   kernel timestamping on the socket.
+/// * `BingerUdp::enable_timestamping` — enables kernel timestamping on the socket (Linux only).
 #[cfg(feature = "timestamping")]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Timestamp {
@@ -259,9 +258,8 @@ impl<const N: usize> RecvBatch<N> {
     /// Returns the kernel-provided software timestamp for the packet at `idx`,
     /// if available.
     ///
-    /// Requires the `timestamping` feature and
-    /// [`BingerUdp::enable_timestamping(true)`](crate::socket::BingerUdp::enable_timestamping)
-    /// to be called on the socket before receiving.
+    /// Requires the `timestamping` feature and `BingerUdp::enable_timestamping(true)`
+    /// to be called on the socket before receiving (Linux only).
     ///
     /// # Panics
     ///
@@ -275,9 +273,8 @@ impl<const N: usize> RecvBatch<N> {
     /// Returns the destination address (local interface address) for the packet
     /// at `idx`, if available.
     ///
-    /// Requires the `pktinfo` feature and
-    /// [`BingerUdp::enable_pktinfo(true)`](crate::socket::BingerUdp::enable_pktinfo)
-    /// to be called on the socket before receiving. Useful for servers that
+    /// Requires the `pktinfo` feature and `BingerUdp::enable_pktinfo(true)`
+    /// to be called on the socket before receiving (Linux only). Useful for servers that
     /// need to know which local address a packet was sent to (e.g., multi-homed
     /// hosts).
     ///
