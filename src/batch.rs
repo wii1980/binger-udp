@@ -58,6 +58,7 @@ impl Timestamp {
 /// batch.push(b"hello", addr).unwrap();
 /// assert_eq!(batch.len(), 1);
 /// ```
+#[allow(clippy::module_name_repetitions)]
 pub struct SendBatch<const N: usize> {
     raw: SendBatchRaw,
 }
@@ -178,6 +179,7 @@ impl<const N: usize> std::ops::DerefMut for SendBatch<N> {
 ///     let addr = batch.addr(i);
 /// }
 /// ```
+#[allow(clippy::module_name_repetitions)]
 pub struct RecvBatch<const N: usize> {
     raw: RecvBatchRaw,
 }

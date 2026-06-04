@@ -1,9 +1,9 @@
-//! Windows platform backend — batch UDP I/O via WSASendMsg / WSARecvMsg.
+//! Windows platform backend — batch UDP I/O via `WSASendMsg` / `WSARecvMsg`.
 //!
 //! Windows has no native batch UDP syscall; we loop individual
-//! WSASendMsg / WSARecvMsg calls.  WSASendMsg is exported directly
-//! from ws2_32.dll; WSARecvMsg is an extension function that must be
-//! loaded at runtime via WSAIoctl + SIO_GET_EXTENSION_FUNCTION_POINTER.
+//! `WSASendMsg` / `WSARecvMsg` calls.  `WSASendMsg` is exported directly
+//! from `ws2_32.dll`; `WSARecvMsg` is an extension function that must be
+//! loaded at runtime via `WSAIoctl` + `SIO_GET_EXTENSION_FUNCTION_POINTER`.
 
 use std::io;
 use std::mem;
@@ -23,7 +23,7 @@ fn encode_addr_into(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORAGE, namele
     match addr {
         SocketAddr::V4(v4) => {
             let sin = WS::SOCKADDR_IN {
-                sin_family: WS::AF_INET as u16,
+                sin_family: WS::AF_INET,
                 sin_port: v4.port().to_be(),
                 sin_addr: WS::IN_ADDR {
                     S_un: WS::IN_ADDR_0 {
@@ -39,7 +39,7 @@ fn encode_addr_into(addr: SocketAddr, storage: &mut WS::SOCKADDR_STORAGE, namele
         }
         SocketAddr::V6(v6) => {
             let sin6 = WS::SOCKADDR_IN6 {
-                sin6_family: WS::AF_INET6 as u16,
+                sin6_family: WS::AF_INET6,
                 sin6_port: v6.port().to_be(),
                 sin6_flowinfo: v6.flowinfo(),
                 sin6_addr: WS::IN6_ADDR {
@@ -101,7 +101,7 @@ static WSARECVMSG_PTR: OnceLock<Option<WsaRecvMsgFn>> = OnceLock::new();
 
 fn get_wsa_recvmsg() -> Option<WsaRecvMsgFn> {
     *WSARECVMSG_PTR.get_or_init(|| {
-        let s = unsafe { WS::socket(WS::AF_INET as i32, WS::SOCK_DGRAM as i32, 0) };
+        let s = unsafe { WS::socket(WS::AF_INET as i32, WS::SOCK_DGRAM, 0) };
         if s == WS::INVALID_SOCKET {
             return None;
         }
@@ -257,7 +257,7 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
             let rc = unsafe {
                 WS::recvfrom(
                     fd,
-                    buf_ptr as *mut u8,
+                    buf_ptr,
                     buf_len as i32,
                     0,
                     &mut source as *mut _ as *mut _,

@@ -10,6 +10,7 @@ use std::io;
 /// [`std::io::Error`] is automatically converted into [`BingerError::Io`]
 /// via the [`From`] trait, so `?` works naturally with I/O operations.
 #[derive(Debug, thiserror::Error)]
+#[allow(clippy::module_name_repetitions)]
 pub enum BingerError {
     /// Batch is full — no more entries can be added.
     #[error("batch is full (capacity: {capacity})")]
