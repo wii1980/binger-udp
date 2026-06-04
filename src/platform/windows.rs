@@ -237,7 +237,7 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
 
         let mut bytes_recv: u32 = 0;
 
-        let result = if let Some(wsa_recvmsg) = get_wsa_recvmsg() {
+        let (result, addr_len) = if let Some(wsa_recvmsg) = get_wsa_recvmsg() {
             let rc = unsafe {
                 wsa_recvmsg(
                     fd,
@@ -248,9 +248,9 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                 )
             };
             if rc == WS::SOCKET_ERROR {
-                Err(io::Error::last_os_error())
+                (Err(io::Error::last_os_error()), 0)
             } else {
-                Ok(bytes_recv as usize)
+                (Ok(bytes_recv as usize), wsa_msg.namelen)
             }
         } else {
             let mut addr_len = mem::size_of::<WS::SOCKADDR_STORAGE>() as i32;
@@ -265,15 +265,15 @@ pub(crate) fn try_recv_batch(fd: Fd, batch: &mut RecvBatchRaw) -> io::Result<usi
                 )
             };
             if rc == WS::SOCKET_ERROR {
-                Err(io::Error::last_os_error())
+                (Err(io::Error::last_os_error()), 0)
             } else {
-                Ok(rc as usize)
+                (Ok(rc as usize), addr_len)
             }
         };
 
         match result {
             Ok(n) => {
-                let decoded = decode_sockaddr(&source, 0);
+                let decoded = decode_sockaddr(&source, addr_len);
                 // SAFETY: i < capacity, n <= buf_len
                 unsafe { batch.set_recv_len(i, n) };
                 let (_, addr_out) = batch.buffer_mut(i);
